@@ -27,6 +27,20 @@ write_files:
        ip address ${loopback}
       exit
       !
+      ! eBGP needs explicit policy in both directions (RFC 8212, bgp ebgp-requires-policy)
+%{ for c in onprem ~}
+      ip prefix-list ONPREM permit ${c} le 32
+%{ endfor ~}
+      ip prefix-list LOOPBACK permit ${loopback}
+      !
+      route-map FROM-CPE permit 10
+       match ip address prefix-list ONPREM
+      exit
+      !
+      route-map TO-CPE permit 10
+       match ip address prefix-list LOOPBACK
+      exit
+      !
       ! eBGP multihop to the on-prem CPE across the VPN. The prefixes learned here only
       ! reach the VM's own routing table, not the OCI VCN route tables (see README).
       router bgp ${asn}
@@ -37,6 +51,8 @@ write_files:
        !
        address-family ipv4 unicast
         network ${loopback}
+        neighbor ${cpe_ip} route-map FROM-CPE in
+        neighbor ${cpe_ip} route-map TO-CPE out
        exit-address-family
       exit
       !

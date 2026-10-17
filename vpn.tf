@@ -99,6 +99,8 @@ locals {
     tunnels     = local.tunnels
     routers     = [local.ip.router_1, local.ip.router_2]
     routers_asn = var.routers_asn
+    loopbacks   = [for r in local.routers : r.loopback]
+    hub_cidr    = var.hub_cidr
     networks    = [local.onprem_subnet, local.onprem_lan]
     lan_ip      = "${cidrhost(local.onprem_lan, 1)}/24"
   })

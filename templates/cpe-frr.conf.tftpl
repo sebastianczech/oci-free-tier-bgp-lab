@@ -16,6 +16,20 @@ route-map ONPREM-ONLY permit 10
  match ip address prefix-list ONPREM
 exit
 !
+! eBGP needs explicit policy in both directions (RFC 8212, bgp ebgp-requires-policy)
+ip prefix-list HUB permit ${hub_cidr} le 32
+%{ for l in loopbacks ~}
+ip prefix-list LOOPBACKS permit ${l}
+%{ endfor ~}
+!
+route-map FROM-OCI permit 10
+ match ip address prefix-list HUB
+exit
+!
+route-map FROM-ROUTERS permit 10
+ match ip address prefix-list LOOPBACKS
+exit
+!
 ! Routes learned by BGP use the VM's own address as source (not the 169.254 tunnel address)
 route-map SET-SRC permit 10
  set src ${cpe_ip}
@@ -45,7 +59,9 @@ router bgp ${asn}
   network ${n}
 %{ endfor ~}
   maximum-paths 2
+  neighbor OCI route-map FROM-OCI in
   neighbor OCI route-map ONPREM-ONLY out
+  neighbor ROUTERS route-map FROM-ROUTERS in
   neighbor ROUTERS route-map ONPREM-ONLY out
  exit-address-family
 exit
