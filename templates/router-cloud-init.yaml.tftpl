@@ -1,0 +1,58 @@
+#cloud-config
+# Router (NVA) behind the NLB: forwards app <-> on-prem and app -> internet (SNAT), runs FRR.
+package_update: true
+packages:
+  - frr
+  - tcpdump
+  - traceroute
+
+write_files:
+  - path: /etc/sysctl.d/90-router.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv4.conf.all.rp_filter = 0
+      net.ipv4.conf.default.rp_filter = 0
+  - path: /etc/frr/frr.conf
+    owner: frr:frr
+    permissions: "0640"
+    defer: true # after the frr package has created the user
+    content: |
+      frr defaults traditional
+      hostname ${hostname}
+      log syslog informational
+      service integrated-vtysh-config
+      ip nht resolve-via-default
+      !
+      interface lo
+       ip address ${loopback}
+      exit
+      !
+      ! eBGP multihop to the on-prem CPE across the VPN. The prefixes learned here only
+      ! reach the VM's own routing table, not the OCI VCN route tables (see README).
+      router bgp ${asn}
+       bgp router-id ${router_ip}
+       neighbor ${cpe_ip} remote-as ${cpe_asn}
+       neighbor ${cpe_ip} ebgp-multihop 5
+       neighbor ${cpe_ip} update-source ${router_ip}
+       !
+       address-family ipv4 unicast
+        network ${loopback}
+       exit-address-family
+      exit
+      !
+
+runcmd:
+  - sysctl --system
+  # Oracle's Ubuntu images ship iptables rules that REJECT everything except SSH and
+  # block forwarding. Security lists do the filtering in this lab, so drop those REJECTs.
+  - sed -i -E '/^-A (INPUT|FORWARD) -j REJECT/d' /etc/iptables/rules.v4
+  - iptables-restore < /etc/iptables/rules.v4
+  # SNAT only for app traffic to the internet; app <-> VCN and app <-> on-prem keep their addresses.
+  - iptables -t nat -A POSTROUTING -s ${app_subnet} -d ${hub_cidr} -j RETURN
+%{ for c in onprem ~}
+  - iptables -t nat -A POSTROUTING -s ${app_subnet} -d ${c} -j RETURN
+%{ endfor ~}
+  - iptables -t nat -A POSTROUTING -s ${app_subnet} -j MASQUERADE
+  - netfilter-persistent save
+  - sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+  - systemctl restart frr

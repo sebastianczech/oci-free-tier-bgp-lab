@@ -1,0 +1,23 @@
+# Route-based IPSec to the OCI Site-to-Site VPN, following Oracle's Libreswan CPE guide.
+# left = private IP of the VM, leftid = its public IP (1:1 NAT, so NAT-T: encapsulation=yes).
+%{ for i, t in tunnels ~}
+conn oci-tunnel-${i + 1}
+    left=${cpe_private_ip}
+    leftid=${cpe_public_ip}
+    right=${t.vpn_ip}
+    authby=secret
+    leftsubnet=0.0.0.0/0
+    rightsubnet=0.0.0.0/0
+    auto=start
+    mark=${t.mark}/0xffffffff
+    vti-interface=vti${i + 1}
+    vti-routing=no
+    leftvti=${t.cpe}/30
+    ikev2=insist
+    ike=aes_cbc256-sha2_384;modp2048
+    phase2alg=aes_gcm256;modp2048
+    encapsulation=yes
+    ikelifetime=28800s
+    salifetime=3600s
+
+%{ endfor ~}

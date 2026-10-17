@@ -1,0 +1,11 @@
+{
+  "name": "diagrams",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python3 build.py && node export.mjs ../../diagrams/*.excalidraw --png-dir ../../diagrams && rm ../../diagrams/*.excalidraw"
+  },
+  "dependencies": {
+    "puppeteer": "23.11.1"
+  }
+}

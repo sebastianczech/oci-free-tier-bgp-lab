@@ -1,0 +1,12 @@
+#cloud-config
+# App VM: no public IP, internet only through NLB -> routers (SNAT). Serves a page for the public LB.
+runcmd:
+  - sed -i -E '/^-A (INPUT|FORWARD) -j REJECT/d' /etc/iptables/rules.v4
+  - iptables-restore < /etc/iptables/rules.v4
+  - netfilter-persistent save
+  # Wait until the routers forward traffic (they boot at the same time as this VM)
+  - for i in $(seq 1 90); do curl -s --max-time 5 -o /dev/null http://archive.ubuntu.com && break; sleep 10; done
+  - apt-get update
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y nginx tcpdump traceroute
+  - echo "<h1>app $(hostname) $(hostname -I)</h1>" > /var/www/html/index.html
+  - systemctl enable --now nginx

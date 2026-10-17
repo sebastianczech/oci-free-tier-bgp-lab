@@ -1,0 +1,54 @@
+frr defaults traditional
+hostname cpe
+log syslog informational
+service integrated-vtysh-config
+ip nht resolve-via-default
+!
+! The on-prem "LAN": a loopback prefix, advertised like a real data-centre network
+interface lo
+ ip address ${lan_ip}
+exit
+!
+ip prefix-list ONPREM seq 10 permit ${networks[0]}
+ip prefix-list ONPREM seq 20 permit ${networks[1]}
+!
+route-map ONPREM-ONLY permit 10
+ match ip address prefix-list ONPREM
+exit
+!
+! Routes learned by BGP use the VM's own address as source (not the 169.254 tunnel address)
+route-map SET-SRC permit 10
+ set src ${cpe_ip}
+exit
+!
+router bgp ${asn}
+ bgp router-id ${cpe_ip}
+ !
+ ! eBGP to the OCI DRG, one session per IPSec tunnel
+ neighbor OCI peer-group
+ neighbor OCI remote-as ${oracle_asn}
+%{ for t in tunnels ~}
+ neighbor ${t.oracle} peer-group OCI
+%{ endfor ~}
+ !
+ ! eBGP multihop to the hub routers, across the VPN
+ neighbor ROUTERS peer-group
+ neighbor ROUTERS remote-as ${routers_asn}
+ neighbor ROUTERS ebgp-multihop 5
+ neighbor ROUTERS update-source ${cpe_ip}
+%{ for r in routers ~}
+ neighbor ${r} peer-group ROUTERS
+%{ endfor ~}
+ !
+ address-family ipv4 unicast
+%{ for n in networks ~}
+  network ${n}
+%{ endfor ~}
+  maximum-paths 2
+  neighbor OCI route-map ONPREM-ONLY out
+  neighbor ROUTERS route-map ONPREM-ONLY out
+ exit-address-family
+exit
+!
+ip protocol bgp route-map SET-SRC
+!

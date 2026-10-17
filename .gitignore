@@ -1,0 +1,10 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform.tfvars
+.DS_Store
+tools/diagrams/node_modules/
+tools/diagrams/package-lock.json
+diagrams/*.excalidraw

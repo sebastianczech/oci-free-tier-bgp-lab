@@ -1,0 +1,28 @@
+#cloud-config
+# On-prem CPE: Libreswan (route-based VTI tunnels to the OCI VPN) + FRR (BGP).
+# The tunnel and BGP config is pushed by Terraform (terraform_data.cpe_config) once the VPN exists.
+package_update: true
+packages:
+  - libreswan
+  - frr
+  - tcpdump
+  - traceroute
+
+write_files:
+  - path: /etc/sysctl.d/90-cpe.conf
+    content: |
+      net.ipv4.ip_forward = 1
+      net.ipv4.conf.all.rp_filter = 0
+      net.ipv4.conf.default.rp_filter = 0
+      net.ipv4.conf.all.accept_redirects = 0
+      net.ipv4.conf.all.send_redirects = 0
+      net.ipv4.conf.default.accept_redirects = 0
+      net.ipv4.conf.default.send_redirects = 0
+
+runcmd:
+  - sysctl --system
+  - sed -i -E '/^-A (INPUT|FORWARD) -j REJECT/d' /etc/iptables/rules.v4
+  - iptables-restore < /etc/iptables/rules.v4
+  - netfilter-persistent save
+  - sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+  - systemctl restart frr
