@@ -1,5 +1,5 @@
 ################################################################################
-# Hub VCN (the "cloud"): LB subnet, router (NVA) subnet, app subnet
+# Hub VCN (the "cloud"): LB subnet, router subnet
 ################################################################################
 
 resource "oci_core_vcn" "hub" {
@@ -15,17 +15,6 @@ resource "oci_core_internet_gateway" "hub" {
   display_name   = "${var.name_prefix}-hub-igw"
 }
 
-# The NLB's private IP as a route target (needs the private IP OCID, not the address).
-data "oci_core_private_ips" "nlb" {
-  ip_address = local.ip.nlb
-  subnet_id  = oci_core_subnet.nva.id
-  depends_on = [oci_network_load_balancer_network_load_balancer.routers]
-}
-
-locals {
-  nlb_private_ip_id = data.oci_core_private_ips.nlb.private_ips[0].id
-}
-
 resource "oci_core_route_table" "lb" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.hub.id
@@ -37,7 +26,7 @@ resource "oci_core_route_table" "lb" {
   }
 }
 
-# Routers: internet directly, on-prem through the DRG.
+# Router and NLB: internet directly, on-prem through the DRG.
 resource "oci_core_route_table" "nva" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.hub.id
@@ -57,38 +46,12 @@ resource "oci_core_route_table" "nva" {
   }
 }
 
-# App: everything leaving the VCN goes to the NLB in front of the routers
-# (outbound to the internet and to on-prem). Azure equivalent: UDR 0/0 -> ILB.
-resource "oci_core_route_table" "app" {
-  compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.hub.id
-  display_name   = "${var.name_prefix}-rt-app"
-
-  route_rules {
-    destination       = "0.0.0.0/0"
-    network_entity_id = local.nlb_private_ip_id
-  }
-  route_rules {
-    destination       = var.onprem_cidr
-    network_entity_id = local.nlb_private_ip_id
-  }
-  route_rules {
-    destination       = local.onprem_lan
-    network_entity_id = local.nlb_private_ip_id
-  }
-}
-
-# VCN ingress route table on the DRG attachment: traffic arriving from on-prem
-# for the app subnet is sent to the NLB first. Azure equivalent: UDR on GatewaySubnet.
+# VCN ingress route table on the DRG attachment (Azure: UDR on GatewaySubnet). Empty: traffic
+# from on-prem goes straight to its destination subnet. It is the hook for README exercise 5.
 resource "oci_core_route_table" "drg_ingress" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.hub.id
   display_name   = "${var.name_prefix}-rt-drg-ingress"
-
-  route_rules {
-    destination       = local.app_subnet
-    network_entity_id = local.nlb_private_ip_id
-  }
 }
 
 resource "oci_core_security_list" "hub_internal" {
@@ -163,17 +126,6 @@ resource "oci_core_subnet" "nva" {
   dns_label         = "nva"
   route_table_id    = oci_core_route_table.nva.id
   security_list_ids = [oci_core_security_list.hub_internal.id]
-}
-
-resource "oci_core_subnet" "app" {
-  compartment_id             = var.compartment_id
-  vcn_id                     = oci_core_vcn.hub.id
-  cidr_block                 = local.app_subnet
-  display_name               = "${var.name_prefix}-app"
-  dns_label                  = "app"
-  prohibit_public_ip_on_vnic = true
-  route_table_id             = oci_core_route_table.app.id
-  security_list_ids          = [oci_core_security_list.hub_internal.id]
 }
 
 ################################################################################

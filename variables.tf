@@ -1,6 +1,7 @@
 variable "region" {
-  description = "OCI region. Always Free compute only works in the tenancy's home region."
+  description = "OCI region. Null uses the region of the ~/.oci/config profile. Always Free compute only works in the tenancy's home region."
   type        = string
+  default     = null
 }
 
 variable "config_file_profile" {
@@ -32,20 +33,8 @@ variable "ssh_private_key_path" {
   default     = "~/.ssh/id_rsa"
 }
 
-variable "my_ip_cidr" {
-  description = "CIDR allowed to SSH to the VMs. Leave null to detect your current public IP."
-  type        = string
-  default     = null
-}
-
-variable "a1_ad_index" {
-  description = "Availability domain index (0-based) for the Ampere A1 routers. Change it on 'Out of host capacity'."
-  type        = number
-  default     = 0
-}
-
 variable "micro_ad_index" {
-  description = "Availability domain index (0-based) for the E2.1.Micro VMs. In multi-AD regions Micro VMs work in one AD only."
+  description = "Availability domain index (0-based) for both VMs. In multi-AD regions E2.1.Micro VMs work in one AD only (see README)."
   type        = number
   default     = 0
 }
@@ -69,7 +58,7 @@ variable "onprem_asn" {
 }
 
 variable "routers_asn" {
-  description = "BGP ASN of the two hub router VMs."
+  description = "BGP ASN of the hub router VM."
   type        = number
   default     = 65020
 }

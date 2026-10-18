@@ -1,15 +1,13 @@
 output "ssh" {
-  description = "SSH commands (the app VM has no public IP, so it jumps through router-1)."
+  description = "SSH commands."
   value = {
     cpe      = "ssh ubuntu@${oci_core_instance.cpe.public_ip}"
-    router_1 = "ssh ubuntu@${oci_core_instance.router["router-1"].public_ip}"
-    router_2 = "ssh ubuntu@${oci_core_instance.router["router-2"].public_ip}"
-    app      = "ssh -J ubuntu@${oci_core_instance.router["router-1"].public_ip} ubuntu@${local.ip.app}"
+    router_1 = "ssh ubuntu@${oci_core_instance.router.public_ip}"
   }
 }
 
 output "app_url" {
-  description = "nginx on the app VM through the public 10 Mbps load balancer."
+  description = "nginx on router-1 through the public 10 Mbps load balancer."
   value       = "http://${oci_load_balancer_load_balancer.app.ip_address_details[0].ip_address}"
 }
 

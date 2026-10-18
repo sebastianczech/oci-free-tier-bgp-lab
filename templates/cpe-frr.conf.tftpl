@@ -45,7 +45,7 @@ router bgp ${asn}
  neighbor ${t.oracle} peer-group OCI
 %{ endfor ~}
  !
- ! eBGP multihop to the hub routers, across the VPN
+ ! eBGP multihop to the hub router(s), across the VPN
  neighbor ROUTERS peer-group
  neighbor ROUTERS remote-as ${routers_asn}
  neighbor ROUTERS ebgp-multihop 5

@@ -30,7 +30,8 @@ resource "oci_core_ipsec" "onprem" {
   display_name   = "${var.name_prefix}-vpn"
   cpe_id         = oci_core_cpe.onprem.id
   drg_id         = oci_core_drg.hub.id
-  static_routes  = [] # BGP only
+  # Required at create time (tunnels start as STATIC). Ignored once the tunnels switch to BGP below.
+  static_routes = [local.onprem_subnet, local.onprem_lan]
 }
 
 data "oci_core_ipsec_connection_tunnels" "onprem" {
@@ -97,13 +98,31 @@ locals {
     asn         = var.onprem_asn
     oracle_asn  = local.oracle_bgp_asn
     tunnels     = local.tunnels
-    routers     = [local.ip.router_1, local.ip.router_2]
+    routers     = [local.ip.router_1]
     routers_asn = var.routers_asn
-    loopbacks   = [for r in local.routers : r.loopback]
+    loopbacks   = [local.router_loopback]
     hub_cidr    = var.hub_cidr
     networks    = [local.onprem_subnet, local.onprem_lan]
     lan_ip      = "${cidrhost(local.onprem_lan, 1)}/24"
   })
+}
+
+locals {
+  cpe_setup = [
+    "cloud-init status --wait > /dev/null || true",
+    # Oracle images REJECT TCP/UDP from the VM to 169.254.0.0/16 (OUTPUT -> InstanceServices) to guard
+    # the metadata service. The BGP peers inside the tunnels are 169.254.x.x too, so let VTI traffic out.
+    # Metadata (169.254.169.254 on ens3) stays protected.
+    "sudo iptables -C OUTPUT -o vti+ -j ACCEPT 2>/dev/null || sudo iptables -I OUTPUT 1 -o vti+ -j ACCEPT",
+    "sudo netfilter-persistent save",
+    "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iputils-ping", # not in the Minimal image
+    "sudo install -m 600 -o root -g root /tmp/oci-ipsec.secrets /etc/ipsec.d/oci-ipsec.secrets",
+    "sudo install -m 644 -o root -g root /tmp/oci-ipsec.conf /etc/ipsec.d/oci-ipsec.conf",
+    "sudo install -m 640 -o frr -g frr /tmp/frr.conf /etc/frr/frr.conf",
+    "rm -f /tmp/oci-ipsec.secrets /tmp/oci-ipsec.conf /tmp/frr.conf",
+    "sudo systemctl enable ipsec && sudo systemctl restart ipsec",
+    "sudo systemctl restart frr",
+  ]
 }
 
 # The tunnel endpoints and keys only exist after the CPE VM (and its public IP) exist,
@@ -114,6 +133,7 @@ resource "terraform_data" "cpe_config" {
     sha256(local.cpe_ipsec_conf),
     sha256(local.cpe_ipsec_secrets),
     sha256(local.cpe_frr_conf),
+    sha256(jsonencode(local.cpe_setup)),
   ]
 
   connection {
@@ -139,14 +159,6 @@ resource "terraform_data" "cpe_config" {
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "cloud-init status --wait > /dev/null || true",
-      "sudo install -m 600 -o root -g root /tmp/oci-ipsec.secrets /etc/ipsec.d/oci-ipsec.secrets",
-      "sudo install -m 644 -o root -g root /tmp/oci-ipsec.conf /etc/ipsec.d/oci-ipsec.conf",
-      "sudo install -m 640 -o frr -g frr /tmp/frr.conf /etc/frr/frr.conf",
-      "rm -f /tmp/oci-ipsec.secrets /tmp/oci-ipsec.conf /tmp/frr.conf",
-      "sudo systemctl enable ipsec && sudo systemctl restart ipsec",
-      "sudo systemctl restart frr",
-    ]
+    inline = local.cpe_setup
   }
 }

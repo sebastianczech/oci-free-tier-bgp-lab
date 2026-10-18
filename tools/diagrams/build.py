@@ -154,21 +154,18 @@ class Diagram:
 def topology():
     d = Diagram("topology")
     d.title(40, 0, "OCI Always Free BGP lab · topology and packet flows",
-            "4 VMs (2 × A1, 2 × Micro) · DRG + Site-to-Site VPN with BGP · private NLB as transparent next hop · public 10 Mbps LB")
+            "2 × E2.1.Micro (cpe, router-1) · DRG + Site-to-Site VPN with BGP · private NLB and public 10 Mbps LB in front of nginx on router-1")
     inet = d.cloud(640, 120, "Internet")
 
-    d.box(30, 200, 1010, 640, "hub VCN 10.0.0.0/16")
+    d.box(30, 200, 1010, 560, "hub VCN 10.0.0.0/16")
     d.subnet(60, 250, 300, 220, "lb 10.0.0.0/24")
     lb = d.service(210, 360, "Public LB\nflexible, 10 Mbps")
-    d.subnet(390, 250, 620, 300, "nva 10.0.1.0/24")
-    r1 = d.router(560, 360, "router-1 .11\nA1 · FRR AS 65020", w=180)
-    r2 = d.router(880, 360, "router-2 .12\nA1 · FRR AS 65020", w=180)
-    nlb = d.service(700, 480, "private NLB .100\npreserve src/dst\nsymmetric hash · ANY/0", w=210)
-    d.subnet(60, 600, 500, 210, "app 10.0.2.0/24")
-    app = d.router(330, 705, "app .10\nMicro · nginx\nno public IP", w=160)
-    d.note(600, 690, "Route tables\napp subnet: 0/0, 172.16/16, 192.168.100/24 → NLB\nnva subnet: 0/0 → IGW · on-prem → DRG\n"
-                     "DRG attachment (ingress): 10.0.2.0/24 → NLB", color="#1e1e1e")
-    d.note(600, 775, "Routers SNAT app → internet,\nso no NAT gateway is needed.", color=OUTBOUND)
+    d.subnet(390, 250, 620, 260, "nva 10.0.1.0/24")
+    r1 = d.router(560, 360, "router-1 .11 · Micro\nFRR AS 65020 · nginx\nlo 10.255.0.1/32", w=220, h=100)
+    nlb = d.service(860, 360, "private NLB .100\nTCP 80 → router-1:80", w=210)
+    d.note(60, 560, "Route tables\nlb subnet: 0/0 → IGW\nnva subnet: 0/0 → IGW · 172.16/16, 192.168.100/24 → DRG\n"
+                    "DRG attachment (ingress): empty, the hook for exercise 5", color="#1e1e1e")
+    d.note(60, 660, "No app VM: nginx runs on router-1.\nThe 2 Micro VMs are the whole Always Free VM allowance used here.", color="#495057")
 
     drg = d.service(1120, 640, "DRG\nAS 31898", w=130)
     d.arrow([drg.l, (1040, 640)], "#1e1e1e", heads=False, width=1)
@@ -182,24 +179,21 @@ def topology():
     d.arrow([drg.at("r", 12), (1395, 652), (1395, cpe.b[1])], ONPREM, width=4, heads=False)
     d.note(1405, 560, "2 × IPSec tunnels\nIKEv2 · NAT-T\n(over the internet)", color=ONPREM, size=12)
     d.arrow([drg.at("r", -12), (1355, 628), (1355, cpe.b[1])], CONTROL, dashed=True, both=True)
-    d.note(1200, 545, "eBGP 31898 ↔ 65010\n169.254.10.0/30\n169.254.20.0/30", color=CONTROL, size=12)
+    d.note(1200, 545, "eBGP 31898 ↔ 65010\n169.254.21.0/30\n169.254.22.0/30", color=CONTROL, size=12)
 
-    # Inbound: internet -> public LB -> app
+    # Inbound: internet -> public LB -> nginx on router-1
     d.arrow([inet.l, (210, 120), lb.t], INBOUND)
-    d.arrow([lb.b, (210, 705), app.l], INBOUND)
-    # Outbound: app -> NLB -> router-1 (SNAT) -> IGW -> internet
-    d.arrow([app.at("t", dx=20), (350, 480), nlb.l], OUTBOUND)
-    d.arrow([nlb.at("t", dx=-50), r1.at("b", dx=30)], OUTBOUND)
+    d.arrow([lb.r, r1.l], INBOUND)
+    # Outbound: router-1's own traffic -> IGW -> internet
     d.arrow([r1.t, (560, 190), (610, 190), (610, inet.b[1])], OUTBOUND)
     d.note(570, 205, "IGW", size=12, color=OUTBOUND)
-    # On-prem -> app: DRG -> ingress RT -> NLB -> router-2 -> app
-    d.arrow([drg.at("l", -10), (960, 630), (960, 480), nlb.r], ONPREM)
-    d.arrow([nlb.at("t", dx=50), r2.at("b", dx=-30)], ONPREM)
-    d.arrow([r2.at("b", dx=20), (900, 575), (450, 575), (450, 705), app.r], ONPREM)
+    # On-prem -> web: tunnel -> DRG -> NLB -> router-1:80
+    d.arrow([drg.at("l", -10), (960, 630), (960, 460), (860, 460), nlb.b], ONPREM)
+    d.arrow([nlb.l, r1.r], ONPREM)
 
-    d.legend(40, 870, [(INBOUND, "inbound: internet → public LB → app", False),
-                       (OUTBOUND, "outbound: app → NLB → router (SNAT) → IGW → internet", False),
-                       (ONPREM, "on-prem ↔ app: cpe → tunnel → DRG → NLB → router → app (reply: same router)", False),
+    d.legend(40, 790, [(INBOUND, "inbound: internet → public LB → nginx on router-1", False),
+                       (OUTBOUND, "outbound: router-1's own traffic → IGW → internet", False),
+                       (ONPREM, "on-prem → web: cpe → tunnel → DRG → NLB (source NAT) → router-1:80", False),
                        (CONTROL, "BGP", True)])
     return d
 
@@ -207,24 +201,22 @@ def topology():
 def bgp_sessions():
     d = Diagram("bgp-sessions")
     d.title(40, 0, "BGP sessions · and why VM BGP doesn't change OCI routing",
-            "cpe peers with the DRG (programs OCI) and, multihop through the VPN, with both routers (programs only the VMs)")
+            "cpe peers with the DRG (programs OCI) and, multihop through the VPN, with router-1 (programs only the VMs)")
     rt = d.service(720, 140, "DRG route table\n172.16.0.0/24, 192.168.100.0/24 → IPSec\nno route for 10.255.0.0/24", w=330, h=80)
     cpe = d.router(250, 330, "cpe 172.16.0.10\nAS 65010\nlo 192.168.100.1/24", w=220, h=110)
     drg = d.service(720, 330, "DRG\nAS 31898", w=150)
-    r1 = d.router(1180, 220, "router-1 10.0.1.11\nAS 65020\nlo 10.255.0.1/32", w=220, h=100)
-    r2 = d.router(1180, 450, "router-2 10.0.1.12\nAS 65020\nlo 10.255.0.2/32", w=220, h=100)
+    r1 = d.router(1180, 330, "router-1 10.0.1.11\nAS 65020\nlo 10.255.0.1/32", w=220, h=100)
 
     d.arrow([drg.t, rt.b], INBOUND, heads=True)
     d.note(730, 255, "programs", size=12, color=INBOUND)
-    d.arrow([cpe.at("r", -20), drg.at("l", -20)], CONTROL, "tunnel 1 · 169.254.10.0/30", dashed=True, both=True)
-    d.arrow([cpe.at("r", 20), drg.at("l", 20)], CONTROL, "tunnel 2 · 169.254.20.0/30", dashed=True, both=True)
+    d.arrow([cpe.at("r", -20), drg.at("l", -20)], CONTROL, "tunnel 1 · 169.254.21.0/30", dashed=True, both=True)
+    d.arrow([cpe.at("r", 20), drg.at("l", 20)], CONTROL, "tunnel 2 · 169.254.22.0/30", dashed=True, both=True)
     d.note(375, 240, "→ 172.16.0.0/24, 192.168.100.0/24\n   (prefix-list ONPREM)", size=12)
-    d.note(375, 380, "← 10.0.0.0/16 (VCN)", size=12)
+    d.note(375, 380, "← 10.0.0.0/24, 10.0.1.0/24 (VCN subnets)", size=12)
 
-    d.arrow([cpe.b, (250, 620), (960, 620), (960, 450), r2.l], CONTROL, dashed=True, both=True)
-    d.arrow([(960, 450), (960, 220), r1.l], CONTROL, dashed=True)
-    d.note(270, 630, "eBGP multihop 65010 ↔ 65020 · TCP 179 runs inside the VPN: cpe → DRG → hub VCN → router", color=CONTROL)
-    d.note(1075, 515, "→ 10.255.0.1/32, 10.255.0.2/32", size=12)
+    d.arrow([cpe.b, (250, 620), (1180, 620), r1.b], CONTROL, dashed=True, both=True)
+    d.note(270, 630, "eBGP multihop 65010 ↔ 65020 · TCP 179 runs inside the VPN: cpe → DRG → hub VCN → router-1", color=CONTROL)
+    d.note(1030, 430, "→ 10.255.0.1/32", size=12)
 
     d.note(380, 455, "ping 10.255.0.1 from cpe  ✗\ncpe: 10.255.0.1 via 10.0.1.11 → vti → DRG\nDRG: no route for 10.255.0.0/24 → drop\n"
                      "BGP between VMs only changes the VMs' own tables.\nOCI has no Azure Route Server equivalent.", color=FAIL)

@@ -1,10 +1,10 @@
 # cp terraform.tfvars.example terraform.tfvars
-region              = "eu-frankfurt-1"
-config_file_profile = "DEFAULT"
-compartment_id      = "ocid1.tenancy.oc1..xxxx"
+compartment_id = "ocid1.tenancy.oc1..xxxx" # the tenancy OCID = root compartment
+
+# Optional: by default the DEFAULT profile in ~/.oci/config and its region are used
+# config_file_profile  = "DEFAULT"
+# region               = "eu-frankfurt-1"
 
 # ssh_public_key_path  = "~/.ssh/id_rsa.pub"
 # ssh_private_key_path = "~/.ssh/id_rsa"
-# my_ip_cidr           = "203.0.113.10/32"
-# a1_ad_index          = 0
-# micro_ad_index       = 0
+# micro_ad_index       = 0 # the AD where your tenancy has the E2.1.Micro limit (see README)
