@@ -6,6 +6,16 @@ Everything is vendor-neutral: Ubuntu 24.04, FRR, Libreswan, nginx and iptables. 
 
 A [series of articles](#articles) walks through the lab layer by layer, with hands-on exercises.
 
+## Articles
+
+The exercises live in a series of articles, one per layer of the lab:
+
+1. [A free hybrid-networking lab on Oracle Cloud](docs/articles/01-free-oci-hybrid-lab.md): what gets built, the Always Free limits, design notes, deploy
+2. [Site-to-Site VPN with Libreswan: route-based IPSec to a DRG](docs/articles/02-site-to-site-vpn-libreswan.md): two tunnels, VTIs, NAT-T, the iptables rule that blocks BGP
+3. [BGP hands-on: eBGP between on-prem and the cloud](docs/articles/03-bgp-hands-on.md): sessions, RFC 8212 policy, AS path, prepending, local-preference, maximum-prefix; all the BGP exercises
+4. [DRG routing and the missing Route Server](docs/articles/04-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
+5. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/05-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
+
 ## Topology
 
 ![Topology: hub VCN with the public LB, router-1 and the private NLB; on-prem VCN with the CPE; DRG and two IPSec tunnels with BGP; internet and on-prem flows to nginx on router-1](diagrams/topology.png)
@@ -47,7 +57,7 @@ A [series of articles](#articles) walks through the lab layer by layer, with han
 
 *Editable source: [`bgp-sessions.excalidraw.svg`](diagrams/bgp-sessions.excalidraw.svg) (open in Excalidraw).*
 
-The second session holds the **key lesson**, which is the same one as in Azure. BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that.
+The second session holds the **key lesson**, which is the same one as in Azure. BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Article 3](docs/articles/03-bgp-hands-on.md) walks through the sessions, and [article 4](docs/articles/04-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
 
 ## Always Free usage
 
@@ -125,16 +135,6 @@ curl http://<lb-ip>                          # app_url output
 ```
 
 In the OCI console, *Networking → Site-to-Site VPN → tunnels* shows the IPSec and BGP status. *DRG → DRG route tables → Get all route rules* shows the BGP-learned on-prem routes.
-
-## Articles
-
-The exercises live in a series of articles, one per layer of the lab:
-
-1. [A free hybrid-networking lab on Oracle Cloud](docs/articles/01-free-oci-hybrid-lab.md): what gets built, the Always Free limits, design notes, deploy
-2. [Site-to-Site VPN with Libreswan: route-based IPSec to a DRG](docs/articles/02-site-to-site-vpn-libreswan.md): two tunnels, VTIs, NAT-T, the iptables rule that blocks BGP
-3. [BGP hands-on: eBGP between on-prem and the cloud](docs/articles/03-bgp-hands-on.md): sessions, RFC 8212 policy, AS path, prepending, local-preference, maximum-prefix; all the BGP exercises
-4. [DRG routing and the missing Route Server](docs/articles/04-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
-5. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/05-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
 
 ## Destroy
 
