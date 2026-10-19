@@ -47,7 +47,8 @@ resource "oci_core_route_table" "nva" {
 }
 
 # VCN ingress route table on the DRG attachment (Azure: UDR on GatewaySubnet). Empty: traffic
-# from on-prem goes straight to its destination subnet. It is the hook for README exercise 5.
+# from on-prem goes straight to its destination subnet. It is the hook for the exercise in
+# docs/articles/04-drg-routing-no-route-server.md.
 resource "oci_core_route_table" "drg_ingress" {
   compartment_id = var.compartment_id
   vcn_id         = oci_core_vcn.hub.id

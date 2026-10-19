@@ -4,6 +4,8 @@ A BGP and hybrid-networking lab on Oracle Cloud that stays inside the [Always Fr
 
 Everything is vendor-neutral: Ubuntu 24.04, FRR, Libreswan, nginx and iptables. Nothing here needs a licence.
 
+A [series of articles](#articles) walks through the lab layer by layer, with hands-on exercises.
+
 ## Topology
 
 ![Topology: hub VCN with the public LB, router-1 and the private NLB; on-prem VCN with the CPE; DRG and two IPSec tunnels with BGP; internet and on-prem flows to nginx on router-1](diagrams/topology.png)
@@ -17,7 +19,7 @@ Everything is vendor-neutral: Ubuntu 24.04, FRR, Libreswan, nginx and iptables. 
 | `lb` subnet | 0.0.0.0/0 | Internet gateway | public LB |
 | `nva` subnet | 0.0.0.0/0 | Internet gateway | router-1's own traffic (packages, SSH) |
 | `nva` subnet | 172.16.0.0/16, 192.168.100.0/24 | DRG | router-1 and the NLB → on-prem |
-| DRG attachment (VCN ingress) | *(empty)* | | attached but without rules: the hook for [exercise 5](#exercise-5-make-the-loopbacks-reachable) |
+| DRG attachment (VCN ingress) | *(empty)* | | attached but without rules: the hook for the exercise in [article 4](docs/articles/04-drg-routing-no-route-server.md) |
 | DRG (auto, BGP) | 172.16.0.0/24, 192.168.100.0/24 | IPSec tunnels | learned from the CPE |
 
 **Not covered on Always Free Micro:** an NVA *in the path*: a router pair behind a transparent NLB with ingress routing and UDR-style route rules. That needs two more VMs, and therefore Ampere A1 capacity. See [Learn About Deploying Palo Alto firewall in Active/Active mode with OCI Flexible Network Load Balancer](https://docs.oracle.com/en/solutions/oci-nlb-palo-alto-active-active/index.html) for that pattern.
@@ -38,7 +40,7 @@ Everything is vendor-neutral: Ubuntu 24.04, FRR, Libreswan, nginx and iptables. 
 
 | Session | Type | Path | What is exchanged |
 |---|---|---|---|
-| CPE ↔ DRG, ×2 | eBGP 65010 ↔ 31898 over VTI | inside each IPSec tunnel | The CPE advertises 172.16.0.0/24 and 192.168.100.0/24 (prefix-list `ONPREM`). The DRG advertises the hub VCN's subnets (10.0.0.0/24, 10.0.1.0/24), not the VCN CIDR. Every session has an `in` and an `out` route-map (see [Exercises](#exercises)). |
+| CPE ↔ DRG, ×2 | eBGP 65010 ↔ 31898 over VTI | inside each IPSec tunnel | The CPE advertises 172.16.0.0/24 and 192.168.100.0/24 (prefix-list `ONPREM`). The DRG advertises the hub VCN's subnets (10.0.0.0/24, 10.0.1.0/24), not the VCN CIDR. Every session has an `in` and an `out` route-map (see [article 3](docs/articles/03-bgp-hands-on.md)). |
 | CPE ↔ router-1 | eBGP multihop 65010 ↔ 65020 | across the VPN, TCP 179 | router-1 advertises its loopback 10.255.0.1/32. The CPE advertises the on-prem prefixes. |
 
 ![BGP sessions: CPE to DRG over both tunnels, CPE to router-1 multihop through the VPN; the router's loopback is not reachable because the DRG never learns it](diagrams/bgp-sessions.png)
@@ -110,7 +112,7 @@ sudo vtysh -c "show ip route bgp"            # 10.0.0.0/24, 10.0.1.0/24 via vti1
 curl -s http://10.0.1.100                    # on-prem → NLB → nginx on router-1
 curl -s --interface 192.168.100.1 http://10.0.1.100   # from the on-prem "LAN"
 ping -c3 10.0.1.11                           # on-prem → router-1 directly
-ping -c3 10.255.0.1                          # fails: see "BGP sessions" above
+ping -c3 10.255.0.1                          # fails: see "BGP sessions" above and article 4
 
 # router-1
 ssh ubuntu@<router-1>
@@ -124,136 +126,15 @@ curl http://<lb-ip>                          # app_url output
 
 In the OCI console, *Networking → Site-to-Site VPN → tunnels* shows the IPSec and BGP status. *DRG → DRG route tables → Get all route rules* shows the BGP-learned on-prem routes.
 
-## Exercises
+## Articles
 
-The exercises build on each other but each one ends with a cleanup step, so you can do them in any order. Each one has an **Azure link** and an **AWS link** that names the same decision in those clouds. The expected outputs come from the configs and FRR's documented behaviour; they have not been captured from a live run yet.
+The exercises live in a series of articles, one per layer of the lab:
 
-Run FRR commands with `sudo vtysh` (or `sudo vtysh -c "<command>"`). In the configs every eBGP neighbor has an `in` and an `out` route-map: with `frr defaults traditional`, FRR applies [RFC 8212](https://datatracker.ietf.org/doc/html/rfc8212) (`bgp ebgp-requires-policy`), so a session without policy is Established but exchanges nothing.
-
-| VM | AS | Neighbors | Accepts (`in`) | Sends (`out`) |
-|---|---|---|---|---|
-| cpe | 65010 | DRG `169.254.21.1`, `169.254.22.1` (peer-group `OCI`) | `FROM-OCI`: 10.0.0.0/16 and longer | `ONPREM-ONLY`: 172.16.0.0/24, 192.168.100.0/24 |
-| cpe | 65010 | router-1 `10.0.1.11` (peer-group `ROUTERS`) | `FROM-ROUTERS`: 10.255.0.1/32 | `ONPREM-ONLY` |
-| router-1 | 65020 | cpe `172.16.0.10` | `FROM-CPE`: 172.16.0.0/16, 192.168.100.0/24 and longer | `TO-CPE`: its loopback 10.255.0.1/32 |
-
-### Exercise 1: Sessions and the state machine
-
-On the CPE:
-
-```
-show bgp summary
-show bgp neighbors 169.254.21.1
-show ip route bgp
-```
-
-All three neighbors should show a number in `State/PfxRcd` (*Established*): 2 prefixes (the hub subnets 10.0.0.0/24 and 10.0.1.0/24) from each DRG peer and 1 (10.255.0.1/32) from router-1. In `show bgp neighbors 169.254.21.1`, find the remote AS (31898, Oracle's ASN), the hold time, and `External BGP neighbor may be up to 1 hops away`. For `10.0.1.11` the same line says `up to 5 hops` (`ebgp-multihop 5`). `show ip route bgp` shows each hub subnet with two next hops, one per VTI (`maximum-paths 2`).
-
-Break and fix: take one tunnel down and watch its BGP session drop to `Active` while the hub stays reachable over the other one:
-
-```bash
-sudo ipsec auto --down oci-tunnel-1
-sudo vtysh -c "show bgp summary"           # 169.254.21.1 Active/Connect, 169.254.22.1 still up
-curl -s http://10.0.1.100                  # still works through vti2
-sudo ipsec auto --up oci-tunnel-1
-```
-
-In the console, *Site-to-Site VPN → Tunnels* shows tunnel 1 *Down* and its BGP status *Down*.
-
-**Azure link:** an active-active VPN Gateway also has two instances and two BGP peers; the on-prem device loses one session, not connectivity.
-**AWS link:** every Site-to-Site VPN connection has two tunnels, each with its own BGP session; AWS performs maintenance on one at a time, so both must be up.
-
-### Exercise 2: eBGP requires policy
-
-On router-1, remove the inbound policy:
-
-```
-conf t
-router bgp 65020
- address-family ipv4 unicast
-  no neighbor 172.16.0.10 route-map FROM-CPE in
-end
-clear bgp 172.16.0.10 soft in
-show bgp summary
-show bgp neighbors 172.16.0.10
-```
-
-The session stays Established, but `PfxRcd` shows `(Policy)` and the neighbor output says `Inbound updates discarded due to missing policy`. `show ip route bgp` is now empty. Put it back with `neighbor 172.16.0.10 route-map FROM-CPE in` and the same soft clear.
-
-Try the same on the CPE with `no neighbor OCI route-map FROM-OCI in`: the CPE loses the hub routes, and `curl http://10.0.1.100` leaves through the internet gateway instead of the tunnels and fails.
-
-**Azure link:** filter what an NVA accepts from Azure Route Server and what it advertises to it. A missing export filter can push a default route to every VNet that ARS feeds.
-**AWS link:** VPC Route Server and Transit Gateway Connect peers are ordinary eBGP sessions. Filter both directions on the appliance.
-
-### Exercise 3: AS path and loop prevention
-
-The CPE learns the hub subnets from the DRG over both tunnels. Let it advertise them back to OCI:
-
-```
-# cpe
-conf t
-ip prefix-list ONPREM permit 10.0.0.0/16 le 24
-end
-clear bgp 169.254.21.1 soft out
-clear bgp 169.254.22.1 soft out
-show bgp neighbors 169.254.22.1 advertised-routes
-```
-
-The CPE now sends 10.0.0.0/24 and 10.0.1.0/24 to the DRG with path `65010 31898`. In the console, *DRG → DRG route tables → Get all route rules* still shows them only through the VCN attachment, never through a tunnel: the path already contains 31898, the DRG's own ASN, so the DRG treats it as a loop and drops it. FRR has the knob for the receiving side (`neighbor … allowas-in`); cloud gateways don't expose it.
-
-**Azure link:** this is why an NVA can't hand Azure Route Server back a route that ARS learned from the VPN/ER gateway: the path already contains 65515, so ARS drops it.
-**AWS link:** the same eBGP rule applies to the Amazon-side ASN of a virtual private gateway or Transit Gateway: a path that already contains it is dropped.
-
-Clean up: `no ip prefix-list ONPREM permit 10.0.0.0/16 le 24` on the CPE, then the two soft clears.
-
-### Exercise 4: Tunnel preference with AS-path prepending
-
-Make tunnel 2 the backup for traffic coming *from* OCI:
-
-```
-# cpe
-conf t
-route-map OCI-T2-OUT permit 10
- match ip address prefix-list ONPREM
- set as-path prepend 65010 65010
-router bgp 65010
- address-family ipv4 unicast
-  neighbor 169.254.22.1 route-map OCI-T2-OUT out
-end
-clear bgp 169.254.22.1 soft out
-```
-
-In the console, *DRG → DRG route tables → Get all route rules* still lists 172.16.0.0/24 and 192.168.100.0/24, now only through tunnel 1. Run `ping 172.16.0.10` on router-1 and watch `sudo ipsec trafficstatus` on the CPE: only tunnel 1's inbound counter grows. The CPE still sends its own traffic over both tunnels (ECMP). That asymmetry is fine for the DRG; to make tunnel 2 the backup in both directions, also lower `local-preference` for routes learned from 169.254.22.1 with an `in` route-map.
-
-**Azure link:** prepending on one link of an active-active VPN or ExpressRoute is how on-prem picks the primary path into Azure.
-**AWS link:** AWS also prefers the shorter AS path when choosing between VPN tunnels, so prepending sets the active tunnel.
-
-Clean up: `neighbor 169.254.22.1 route-map ONPREM-ONLY out`, `no route-map OCI-T2-OUT`, then the soft clear.
-
-### Exercise 5: Make the loopbacks reachable
-
-The CPE has 10.255.0.1/32 in its routing table, but `ping 10.255.0.1` fails (see [BGP sessions](#bgp-sessions)). Advertising 10.255.0.0/24 from the CPE to OCI doesn't help: the DRG would learn it from the tunnel and send it straight back.
-
-Find a configuration that makes `ping -I 192.168.100.1 10.255.0.1` from the CPE work. Hints: which DRG route table decides where the DRG sends traffic for a prefix, can it point at the hub VCN attachment, and what can the attachment's (empty) ingress route table do with a destination that is not a subnet? router-1 will also need `skip_source_dest_check`, because 10.255.0.1 isn't an address OCI assigned to its VNIC. Check the [VCN route table](https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/managingroutetables.htm#Route) rules for private IP targets before you start. Make the change in Terraform (`vpn.tf`, `network.tf`, `compute.tf`), not in the console, so `terraform destroy` still cleans up.
-
-**Azure link:** Azure Route Server learns 10.255.0.1/32 from the NVA over BGP and programs it into the VNet and the VPN gateway, so none of the static work is needed.
-**AWS link:** VPC Route Server does the same for VPC route tables (next hop = the appliance's ENI); a Transit Gateway learns it through a Connect attachment.
-
-### Exercise 6: Flow logs
-
-*Logging → Log groups → bgp-lab-logs → nva flow log* shows accepted flows in the router subnet. Run `curl http://10.0.1.100` on the CPE a few times, wait a few minutes, and find two sets of records: 172.16.0.10 → 10.0.1.100:80 (on-prem to the NLB) and 10.0.1.100 → 10.0.1.11:80 (the NLB to router-1, after source translation). Do the same for `curl <app_url>` from your Mac and find the flow from the public LB's private IP in `lb` to 10.0.1.11:80.
-
-**Azure link:** VNet flow logs (the successor to NSG flow logs) record the same flows on the backend's NIC.
-**AWS link:** VPC Flow Logs on the target's ENI; with an NLB, the flows show the load balancer's private IP unless client IP preservation is on.
-
-### Exercise 7: Watch BGP on the wire
-
-On router-1:
-
-```bash
-sudo tcpdump -ni any -v tcp port 179
-```
-
-In another session run `sudo vtysh -c "clear bgp 172.16.0.10"` and watch the OPEN, KEEPALIVE and UPDATE messages. With `-v`, tcpdump prints the IP TTL: the session crosses the VCN, the DRG, the tunnel and the on-prem VCN, which is why `ebgp-multihop` is needed. On the CPE, `sudo tcpdump -ni vti1 tcp port 179` shows the session with the DRG inside tunnel 1. Those packets are never visible on `ens3`, which only carries ESP over UDP 4500.
+1. [A free hybrid-networking lab on Oracle Cloud](docs/articles/01-free-oci-hybrid-lab.md): what gets built, the Always Free limits, design notes, deploy
+2. [Site-to-Site VPN with Libreswan: route-based IPSec to a DRG](docs/articles/02-site-to-site-vpn-libreswan.md): two tunnels, VTIs, NAT-T, the iptables rule that blocks BGP
+3. [BGP hands-on: eBGP between on-prem and the cloud](docs/articles/03-bgp-hands-on.md): sessions, RFC 8212 policy, AS path, prepending, local-preference, maximum-prefix; all the BGP exercises
+4. [DRG routing and the missing Route Server](docs/articles/04-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
+5. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/05-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
 
 ## Destroy
 
@@ -311,7 +192,8 @@ terraform destroy
 - `compute.tf`: the 2 Micro VMs (cpe, router-1)
 - `load_balancers.tf`: the private NLB and the public LB, both in front of nginx on router-1
 - `templates/`: cloud-init for each VM, plus the Libreswan and FRR config templates for the CPE
-- `diagrams/`: Excalidraw diagrams (`.excalidraw.svg` is the editable source, `.png` is embedded here). They are generated by `tools/diagrams/build.py`: `cd tools/diagrams && npm install && npm run build`
+- `docs/articles/`: the article series with the exercises
+- `diagrams/`: Excalidraw diagrams (`.excalidraw.svg` is the editable source, `.png` is embedded in the README and the articles). They are generated by `tools/diagrams/build.py`: `cd tools/diagrams && npm install && npm run build`. The build downloads Oracle's [OCI Architecture Diagram Toolkits](https://docs.oracle.com/en-us/iaas/Content/General/Reference/graphicsfordiagrams.htm) once and extracts the official icons into `tools/diagrams/.cache/` (not committed)
 
 ## References
 

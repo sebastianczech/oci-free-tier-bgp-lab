@@ -8,3 +8,4 @@ terraform.tfvars
 tools/diagrams/node_modules/
 tools/diagrams/package-lock.json
 diagrams/*.excalidraw
+tools/diagrams/.cache/
