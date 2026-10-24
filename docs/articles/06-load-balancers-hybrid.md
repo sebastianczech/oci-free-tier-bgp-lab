@@ -1,8 +1,8 @@
 # Load balancers in a hybrid setup: public LB vs private NLB
 
-*Part 5 of 5 in the OCI Always Free BGP lab series. Previous: [DRG routing and the missing Route Server](04-drg-routing-no-route-server.md). Back to the start: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md).*
+*Part 6 of 6 in the OCI Always Free BGP lab series. Previous: [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md). Back to the start: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md).*
 
-The lab's "application" is nginx on router-1, and two load balancers sit in front of it: a public flexible Load Balancer for the internet, and a private Network Load Balancer for on-prem, reached through the VPN. Always Free includes one of each. They solve the same problem in different ways, and the difference shows up in one question: which source IP does the backend see?
+The lab's "application" is nginx on router-1, and two load balancers sit in front of it: a public flexible Load Balancer for the internet, and a private Network Load Balancer for on-prem, reached through the VPN. Always Free includes one of each. Both forward to the same nginx, but they handle the client's connection differently, and the source IP that nginx sees shows the difference.
 
 ## Two load balancers
 
@@ -19,7 +19,7 @@ The lab's "application" is nginx on router-1, and two load balancers sit in fron
 
 **The public LB is a full proxy.** It ends the client's TCP (and TLS, if configured) connection and opens its own connection to the backend. router-1 sees the LB's private IP in the `lb` subnet as the client. The LB adds headers so the application can still find the real client: `X-Real-IP` is the client's address, and `X-Forwarded-For` appends it to whatever the client already sent.
 
-**The NLB passes packets through.** It doesn't end the connection, it forwards it. It can keep the client's source IP (`is_preserve_source = true`), and then router-1 would see 172.16.0.10. The lab turns that off. The NLB replaces the source with its own IP, 10.0.1.100, so router-1's reply goes back to the NLB and the return path can't bypass it.
+**The NLB passes packets through.** The client's TCP connection goes all the way to the backend. The NLB can keep the client's source IP (`is_preserve_source = true`), and then router-1 would see 172.16.0.10. The lab turns that off. The NLB replaces the source with its own IP, 10.0.1.100, so router-1's reply goes back to the NLB and the return path can't bypass it.
 
 **Health checks.** Both check `GET /` on port 80 and send traffic only to healthy backends. The NLB's backend set uses a five-tuple hash to spread connections; the LB uses round robin. With one backend, neither matters, but the health checks do (exercise 3).
 

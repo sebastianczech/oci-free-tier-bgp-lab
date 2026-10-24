@@ -12,9 +12,10 @@ The exercises live in a series of articles, one per layer of the lab:
 
 1. [A free hybrid-networking lab on Oracle Cloud](docs/articles/01-free-oci-hybrid-lab.md): what gets built, the Always Free limits, design notes, deploy
 2. [Site-to-Site VPN with Libreswan: route-based IPSec to a DRG](docs/articles/02-site-to-site-vpn-libreswan.md): two tunnels, VTIs, NAT-T, the iptables rule that blocks BGP
-3. [BGP hands-on: eBGP between on-prem and the cloud](docs/articles/03-bgp-hands-on.md): sessions, RFC 8212 policy, AS path, prepending, local-preference, maximum-prefix; all the BGP exercises
-4. [DRG routing and the missing Route Server](docs/articles/04-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
-5. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/05-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
+3. [BGP hands-on, part 1: eBGP sessions and policy](docs/articles/03-bgp-sessions-and-policy.md): sessions, multihop, RFC 8212 policy, maximum-prefix, BGP on the wire
+4. [BGP hands-on, part 2: path selection and its limits](docs/articles/04-bgp-path-selection.md): AS path and loop prevention, prepending, local-preference, the route that goes nowhere
+5. [DRG routing and the missing Route Server](docs/articles/05-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
+6. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/06-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
 
 ## Topology
 
@@ -29,7 +30,7 @@ The exercises live in a series of articles, one per layer of the lab:
 | `lb` subnet | 0.0.0.0/0 | Internet gateway | public LB |
 | `nva` subnet | 0.0.0.0/0 | Internet gateway | router-1's own traffic (packages, SSH) |
 | `nva` subnet | 172.16.0.0/16, 192.168.100.0/24 | DRG | router-1 and the NLB → on-prem |
-| DRG attachment (VCN ingress) | *(empty)* | | attached but without rules: the hook for the exercise in [article 4](docs/articles/04-drg-routing-no-route-server.md) |
+| DRG attachment (VCN ingress) | *(empty)* | | attached but without rules: the hook for the exercise in [article 5](docs/articles/05-drg-routing-no-route-server.md) |
 | DRG (auto, BGP) | 172.16.0.0/24, 192.168.100.0/24 | IPSec tunnels | learned from the CPE |
 
 **Not covered on Always Free Micro:** an NVA *in the path*: a router pair behind a transparent NLB with ingress routing and UDR-style route rules. That needs two more VMs, and therefore Ampere A1 capacity. See [Learn About Deploying Palo Alto firewall in Active/Active mode with OCI Flexible Network Load Balancer](https://docs.oracle.com/en/solutions/oci-nlb-palo-alto-active-active/index.html) for that pattern.
@@ -50,14 +51,14 @@ The exercises live in a series of articles, one per layer of the lab:
 
 | Session | Type | Path | What is exchanged |
 |---|---|---|---|
-| CPE ↔ DRG, ×2 | eBGP 65010 ↔ 31898 over VTI | inside each IPSec tunnel | The CPE advertises 172.16.0.0/24 and 192.168.100.0/24 (prefix-list `ONPREM`). The DRG advertises the hub VCN's subnets (10.0.0.0/24, 10.0.1.0/24), not the VCN CIDR. Every session has an `in` and an `out` route-map (see [article 3](docs/articles/03-bgp-hands-on.md)). |
+| CPE ↔ DRG, ×2 | eBGP 65010 ↔ 31898 over VTI | inside each IPSec tunnel | The CPE advertises 172.16.0.0/24 and 192.168.100.0/24 (prefix-list `ONPREM`). The DRG advertises the hub VCN's subnets (10.0.0.0/24, 10.0.1.0/24), not the VCN CIDR. Every session has an `in` and an `out` route-map (see [article 3](docs/articles/03-bgp-sessions-and-policy.md)). |
 | CPE ↔ router-1 | eBGP multihop 65010 ↔ 65020 | across the VPN, TCP 179 | router-1 advertises its loopback 10.255.0.1/32. The CPE advertises the on-prem prefixes. |
 
 ![BGP sessions: CPE to DRG over both tunnels, CPE to router-1 multihop through the VPN; the router's loopback is not reachable because the DRG never learns it](diagrams/bgp-sessions.png)
 
 *Editable source: [`bgp-sessions.excalidraw.svg`](diagrams/bgp-sessions.excalidraw.svg) (open in Excalidraw).*
 
-The second session holds the **key lesson**, which is the same one as in Azure. BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Article 3](docs/articles/03-bgp-hands-on.md) walks through the sessions, and [article 4](docs/articles/04-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
+The second session holds the **key lesson**, which is the same one as in Azure. BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Articles 3 and 4](docs/articles/03-bgp-sessions-and-policy.md) walk through the sessions, and [article 5](docs/articles/05-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
 
 ## Always Free usage
 
@@ -122,7 +123,7 @@ sudo vtysh -c "show ip route bgp"            # 10.0.0.0/24, 10.0.1.0/24 via vti1
 curl -s http://10.0.1.100                    # on-prem → NLB → nginx on router-1
 curl -s --interface 192.168.100.1 http://10.0.1.100   # from the on-prem "LAN"
 ping -c3 10.0.1.11                           # on-prem → router-1 directly
-ping -c3 10.255.0.1                          # fails: see "BGP sessions" above and article 4
+ping -c3 10.255.0.1                          # fails: see "BGP sessions" above and article 5
 
 # router-1
 ssh ubuntu@<router-1>

@@ -1,14 +1,14 @@
 # Site-to-Site VPN with Libreswan: route-based IPSec to a DRG
 
-*Part 2 of 5 in the OCI Always Free BGP lab series. Previous: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md). Next: [BGP hands-on](03-bgp-hands-on.md).*
+*Part 2 of 6 in the OCI Always Free BGP lab series. Previous: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md). Next: [BGP sessions and policy](03-bgp-sessions-and-policy.md).*
 
 Before BGP can run between on-prem and the cloud, there has to be a path for it. In this lab that path is an OCI Site-to-Site VPN: two IPSec tunnels between a Linux VM running Libreswan (the "cpe") and the DRG. This article looks at how those tunnels are built and what to check when they don't come up.
 
-## The picture
+## Two tunnels, two headends
 
 ![Two IPSec tunnels from the cpe VM, through the 1:1 NAT of its public IP and the internet, to two OCI VPN headends and the DRG; BGP runs inside the tunnels](../../diagrams/vpn-tunnels.png)
 
-OCI always gives a Site-to-Site VPN connection **two tunnels**, each to a different headend. Both are active, and the CPE is expected to run both. Azure's active-active VPN gateway and AWS Site-to-Site VPN work the same way.
+OCI always gives a Site-to-Site VPN connection two tunnels, each to a different headend. Both are active, and the CPE is expected to run both. Azure's active-active VPN gateway and AWS Site-to-Site VPN work the same way.
 
 ## The OCI side
 
@@ -51,7 +51,7 @@ conn oci-tunnel-1
 The important parts:
 
 - **Route-based, not policy-based.** `leftsubnet=0.0.0.0/0` and `rightsubnet=0.0.0.0/0` let any traffic into the tunnel. What actually goes in is decided by routing: whatever the kernel routes to `vti1` is encrypted into tunnel 1. The `mark` ties the tunnel to its VTI interface.
-- **`vti-routing=no`.** Libreswan doesn't add routes. FRR does, from BGP. That's what makes BGP useful here: the routes follow the tunnels that are up.
+- **`vti-routing=no`.** Libreswan doesn't add routes. FRR adds them from BGP, so the routes follow whichever tunnels are up.
 - **NAT.** The VM has only a private IP; OCI maps it 1:1 to its public IP. So `left` is the private IP, `leftid` the public IP, and `encapsulation=yes` forces NAT-T. IKE starts on UDP 500 and moves to UDP 4500, and ESP travels inside UDP 4500. The security list on the cpe's subnet allows UDP 500 and 4500 in.
 
 The cloud-init for the cpe also sets `net.ipv4.ip_forward = 1` and turns off `rp_filter`. With two tunnels and ECMP, a reply can come back on the other tunnel, and strict reverse-path filtering would drop it.
@@ -111,7 +111,14 @@ sudo ipsec auto --down oci-tunnel-1
 sudo ipsec auto --up oci-tunnel-1
 ```
 
-The `--up` fails in the IKE_AUTH exchange with `AUTHENTICATION_FAILED`. Tunnel 2 keeps carrying traffic, so `curl -s http://10.0.1.100` still works. In the console, tunnel 1 shows *Down*.
+The `--up` fails in the IKE_AUTH exchange with `AUTHENTICATION_FAILED`. It prints pluto's progress straight to your terminal, so the error shows up there, on a line that starts with `"oci-tunnel-1" #<n>:` (the exact wording depends on the Libreswan version). Press Ctrl+C to get your prompt back. Pluto also logs to the systemd journal, so you can find the error again later, or follow it live in a second session with `-f`:
+
+```bash
+sudo journalctl -u ipsec --since "5 min ago" | grep -E "oci-tunnel-1|AUTHENTICATION_FAILED"
+sudo ipsec trafficstatus   # only oci-tunnel-2 has an established IPsec SA
+```
+
+Tunnel 2 keeps carrying traffic, so `curl -s http://10.0.1.100` still works. In the console, tunnel 1 shows *Down*.
 
 Clean up:
 
@@ -130,22 +137,25 @@ sudo iptables -L OUTPUT -n -v --line-numbers   # rule 1: ACCEPT on vti+, then th
 sudo iptables -L InstanceServices -n           # the REJECT rules for 169.254.0.0/16
 ```
 
-Remove the `vti+` rule and reset one BGP session:
+Remove the `vti+` rule and reset one BGP session. `iptables -D` deletes one matching rule per call, and the listing above may show more than one copy (for example, if you ran the command from the section above by hand). Repeat the `-D` until it prints `Bad rule (does a matching rule exist in that chain?)`; while any copy is left, BGP keeps working:
 
 ```bash
-sudo iptables -D OUTPUT -o vti+ -j ACCEPT
+sudo iptables -D OUTPUT -o vti+ -j ACCEPT   # repeat until "Bad rule"
 sudo vtysh -c "clear bgp 169.254.21.1"
 sudo vtysh -c "show bgp summary"
 ```
 
-The tunnels stay up, but 169.254.21.1 can't get back to Established: the cpe's TCP SYN to port 179 is rejected locally. The other DRG session drops too once its hold timer expires, because its keepalives are rejected as well. The router-1 session stays up, because 10.0.1.11 isn't a 169.254 address.
+The tunnels stay up, but 169.254.21.1 can't get back to Established and sits in `Connect` or `Active`: the cpe's TCP SYN to port 179 is rejected locally. The other DRG session stays Established at first. It drops only when its hold timer expires (90 to 180 seconds, depending on what the peers negotiated), because its keepalives are rejected as well, so wait about 3 minutes and run `show bgp summary` again to see it. The router-1 session stays up, because 10.0.1.11 isn't a 169.254 address.
 
 Clean up:
 
 ```bash
 sudo iptables -I OUTPUT 1 -o vti+ -j ACCEPT
 sudo vtysh -c "clear bgp 169.254.21.1"
+sudo vtysh -c "show bgp summary"
 ```
+
+The sessions don't come back straight away. After the failed attempts, a session can stay in `Active` for a minute or two while FRR's connect-retry timer (120 seconds by default) runs out, then it returns to Established. If it is still down after about 3 minutes, check that rule 1 in `sudo iptables -L OUTPUT -n -v --line-numbers` is the `vti+` ACCEPT and that its packet counter goes up.
 
 The rule was never saved, so a reboot would also restore it.
 

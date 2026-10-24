@@ -305,7 +305,7 @@ def bgp_policy():
 
 
 def bgp_prepend():
-    """Article 3: steer traffic from OCI onto tunnel 1 with AS-path prepending."""
+    """Article 4: steer traffic from OCI onto tunnel 1 with AS-path prepending."""
     d = Diagram("bgp-prepend")
     d.title(40, 0, "AS-path prepending", "the DRG picks the shorter AS path")
     r1 = d.icon("vm", 130, 330, "router-1", h=56)
@@ -322,7 +322,7 @@ def bgp_prepend():
 
 
 def drg_routing():
-    """Article 4: the three places a packet to router-1's loopback needs a route."""
+    """Article 5: the three places a packet to router-1's loopback needs a route."""
     d = Diagram("drg-routing")
     d.title(40, 0, "Why ping 10.255.0.1 fails", "three places in OCI need a route")
     cpe = d.icon("cpe", 120, 330, "cpe", h=60)
@@ -347,7 +347,7 @@ def drg_routing():
 
 
 def lb_flows():
-    """Article 5: which source IP router-1 sees behind each load balancer."""
+    """Article 6: which source IP router-1 sees behind each load balancer."""
     d = Diagram("lb-flows")
     d.title(40, 0, "Who sees which source IP", "both load balancers replace the client's source address")
     d.vcn(440, 80, 1060, 560, "hub VCN")

@@ -1,6 +1,6 @@
 # A free hybrid-networking lab on Oracle Cloud
 
-*Part 1 of 5 in the OCI Always Free BGP lab series. Next: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md).*
+*Part 1 of 6 in the OCI Always Free BGP lab series. Next: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md).*
 
 Hybrid networking is hard to learn from slides. You need a cloud gateway, an on-prem router, a VPN between them and BGP on top, and in most clouds that costs money every hour it runs. Oracle Cloud's Always Free tier includes everything needed for that: a Dynamic Routing Gateway (DRG), Site-to-Site VPN, a load balancer, a network load balancer and two small VMs.
 
@@ -8,9 +8,10 @@ This series uses one Terraform module, [oci-free-tier-bgp-lab](../../README.md),
 
 1. **A free hybrid-networking lab on Oracle Cloud** (this article)
 2. [Site-to-Site VPN with Libreswan: route-based IPSec to a DRG](02-site-to-site-vpn-libreswan.md)
-3. [BGP hands-on: eBGP between on-prem and the cloud](03-bgp-hands-on.md)
-4. [DRG routing and the missing Route Server](04-drg-routing-no-route-server.md)
-5. [Load balancers in a hybrid setup: public LB vs private NLB](05-load-balancers-hybrid.md)
+3. [BGP hands-on, part 1: eBGP sessions and policy](03-bgp-sessions-and-policy.md)
+4. [BGP hands-on, part 2: path selection and its limits](04-bgp-path-selection.md)
+5. [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md)
+6. [Load balancers in a hybrid setup: public LB vs private NLB](06-load-balancers-hybrid.md)
 
 Every article maps the OCI pieces to their Azure and AWS equivalents, so the lessons carry over.
 
@@ -20,7 +21,7 @@ Every article maps the OCI pieces to their Azure and AWS equivalents, so the les
 
 - **hub VCN** (10.0.0.0/16): the "cloud". The `lb` subnet holds the public load balancer. The `nva` subnet holds router-1 and the private NLB.
 - **router-1** (10.0.1.11): an E2.1.Micro VM with FRR (BGP, AS 65020) and nginx. Its loopback 10.255.0.1/32 plays a network that lives behind a router.
-- **onprem VCN** (172.16.0.0/16): a second VCN that plays the on-prem data centre. It has one VM, the **cpe** (172.16.0.10), with Libreswan for IPSec and FRR for BGP (AS 65010). A loopback, 192.168.100.1/24, plays the office LAN.
+- **onprem VCN** (172.16.0.0/16): a second VCN that plays the on-prem data centre. It has one VM, the cpe (172.16.0.10), with Libreswan for IPSec and FRR for BGP (AS 65010). A loopback, 192.168.100.1/24, plays the office LAN.
 - **DRG + Site-to-Site VPN**: two IPSec tunnels from the cpe to OCI, with one eBGP session inside each. The DRG is AS 31898, Oracle's ASN.
 - **Public LB** (flexible, 10 Mbps) for the internet and **private NLB** (10.0.1.100) for on-prem, both in front of nginx on router-1.
 
