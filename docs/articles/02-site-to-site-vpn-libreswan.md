@@ -50,7 +50,7 @@ conn oci-tunnel-1
 
 The important parts:
 
-- **Route-based, not policy-based.** `leftsubnet=0.0.0.0/0` and `rightsubnet=0.0.0.0/0` let any traffic into the tunnel. What actually goes in is decided by routing: whatever the kernel routes to `vti1` is encrypted into tunnel 1. The `mark` ties the tunnel to its VTI interface.
+- **Route-based, not policy-based.** `leftsubnet=0.0.0.0/0` and `rightsubnet=0.0.0.0/0` let any traffic into the tunnel, and routing decides what goes in: whatever the kernel routes to `vti1` is encrypted into tunnel 1. The `mark` ties the tunnel to its VTI interface.
 - **`vti-routing=no`.** Libreswan doesn't add routes. FRR adds them from BGP, so the routes follow whichever tunnels are up.
 - **NAT.** The VM has only a private IP; OCI maps it 1:1 to its public IP. So `left` is the private IP, `leftid` the public IP, and `encapsulation=yes` forces NAT-T. IKE starts on UDP 500 and moves to UDP 4500, and ESP travels inside UDP 4500. The security list on the cpe's subnet allows UDP 500 and 4500 in.
 
@@ -157,7 +157,7 @@ sudo vtysh -c "show bgp summary"
 
 The sessions don't come back straight away. After the failed attempts, a session can stay in `Active` for a minute or two while FRR's connect-retry timer (120 seconds by default) runs out, then it returns to Established. If it is still down after about 3 minutes, check that rule 1 in `sudo iptables -L OUTPUT -n -v --line-numbers` is the `vti+` ACCEPT and that its packet counter goes up.
 
-The rule was never saved, so a reboot would also restore it.
+Terraform saved the rule with `netfilter-persistent save` when it set up the cpe, and the deletion was never saved, so a reboot would also restore it.
 
 ## Azure and AWS equivalents
 

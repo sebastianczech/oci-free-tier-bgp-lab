@@ -87,12 +87,22 @@ Clean up: `sudo systemctl start nginx`, and wait for both backends to turn *OK*.
 | `is_preserve_source` | (the Standard LB always keeps the client IP) | Client IP preservation |
 | VCN flow logs | VNet flow logs | VPC Flow Logs |
 
+## Where to go next
+
+Run `terraform destroy` when you're done. To take the lab further, mostly beyond Always Free:
+
+- **An NVA in the path.** Two router VMs behind a transparent NLB, with the DRG attachment's route table pointing at the NLB. It needs Ampere A1 capacity for the extra VMs. Oracle's Palo Alto active/active reference architecture shows the pattern.
+- **FastConnect.** The same DRG, BGP and route tables, over a private circuit instead of the internet. The BGP lessons from parts 3 and 4 carry over unchanged.
+- **IPv6.** VCNs, the DRG and Site-to-Site VPN support IPv6, so the lab could run dual-stack.
+- **Faster failover.** Over IPSec, BGP only notices a dead tunnel when its hold timer expires. Shorter timers, or Dead Peer Detection in Libreswan, cut that time.
+
 ## Links
 
 * [Overview of Load Balancer](https://docs.oracle.com/en-us/iaas/Content/Balance/Concepts/balanceoverview.htm): the public flexible LB
 * [Load Balancer Headers](https://docs.oracle.com/iaas/Content/Balance/Reference/httpheaders.htm): `X-Forwarded-For`, `X-Real-IP` and the other headers the LB adds
 * [Overview of Flexible Network Load Balancer](https://docs.oracle.com/en-us/iaas/Content/NetworkLoadBalancer/overview.htm): the L4 NLB and source/destination preservation
 * [Flow Logs](https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/vcn_flow_logs.htm): VCN flow logs and where they are stored
+* [Learn About Deploying Palo Alto firewall in Active/Active mode with OCI Flexible Network Load Balancer](https://docs.oracle.com/en/solutions/oci-nlb-palo-alto-active-active/index.html): the NVA-in-the-path pattern from "Where to go next"
 * [What is Azure Load Balancer?](https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-overview): internal and public Standard Load Balancer
 * [What is a Network Load Balancer?](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html): the internal L4 load balancer, like the OCI NLB here
 * [What is an Application Load Balancer?](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html): the full-proxy HTTP LB, like the OCI public LB

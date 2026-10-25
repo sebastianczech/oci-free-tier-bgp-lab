@@ -58,7 +58,7 @@ The exercises live in a series of articles, one per layer of the lab:
 
 *Editable source: [`bgp-sessions.excalidraw.svg`](diagrams/bgp-sessions.excalidraw.svg) (open in Excalidraw).*
 
-The second session holds the **key lesson**, which is the same one as in Azure. BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Articles 3 and 4](docs/articles/03-bgp-sessions-and-policy.md) walk through the sessions, and [article 5](docs/articles/05-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
+The second session shows the lab's main lesson, and it applies to Azure too: BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Articles 3 and 4](docs/articles/03-bgp-sessions-and-policy.md) walk through the sessions, and [article 5](docs/articles/05-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
 
 ## Always Free usage
 
@@ -136,6 +136,17 @@ curl http://<lb-ip>                          # app_url output
 ```
 
 In the OCI console, *Networking → Site-to-Site VPN → tunnels* shows the IPSec and BGP status. *DRG → DRG route tables → Get all route rules* shows the BGP-learned on-prem routes.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `400-LimitExceeded` when the VMs launch | `micro_ad_index` points at an AD without E2.1.Micro capacity | Run the `oci limits` command in [Deploy](#deploy) and use the AD with value 2 |
+| VM launches fail or Always Free limits are 0 | The profile in `~/.oci/config` isn't the tenancy's home region | Set `region=` to the home region (*avatar → Tenancy*) |
+| `terraform_data.cpe_config` times out on SSH | Your public IP changed since the last plan, so the security list blocks SSH | Run `terraform apply` again: it reads the new IP from `ifconfig.me` and updates the rule |
+| Tunnels up, BGP to 169.254.x.x stuck in `Active` | The `InstanceServices` rule rejects output to 169.254.0.0/16 | Check that rule 1 of `sudo iptables -L OUTPUT -n -v` is the `vti+` ACCEPT ([article 2](docs/articles/02-site-to-site-vpn-libreswan.md)) |
+| Session Established, but `PfxRcd` shows `(Policy)` | An eBGP neighbor without an `in` or `out` route-map ([article 3](docs/articles/03-bgp-sessions-and-policy.md)) | Add the route-map back and run `clear bgp <peer> soft` |
+| `ping 10.255.0.1` from the CPE fails | Expected: nothing advertises the loopback to OCI | See [article 5](docs/articles/05-drg-routing-no-route-server.md) |
 
 ## Destroy
 

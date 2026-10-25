@@ -64,7 +64,7 @@ In the console, *DRG → DRG route tables → Get all route rules* still lists 1
 **Azure link:** prepending on one link of an active-active VPN or ExpressRoute is how on-prem picks the primary path into Azure.
 **AWS link:** AWS also prefers the shorter AS path when choosing between VPN tunnels, so prepending sets the active tunnel.
 
-Keep this config for exercise 3, or clean up: `neighbor 169.254.22.1 route-map ONPREM-ONLY out`, `no route-map OCI-T2-OUT`, then the soft clear.
+Keep this config for exercise 3, or clean up: `no neighbor 169.254.22.1 route-map OCI-T2-OUT out` (the neighbor falls back to the `OCI` peer-group's `ONPREM-ONLY`), `no route-map OCI-T2-OUT`, then the soft clear.
 
 ### Exercise 3: Local-preference for the outbound direction
 
@@ -92,7 +92,7 @@ The route-map has only one `permit` entry, and it matches `HUB`, so it filters t
 **Azure link:** on-prem sets local-preference on routes learned from the two Azure VPN or ExpressRoute paths to pick the primary path *to* Azure.
 **AWS link:** the same for routes learned from the two tunnels (or Direct Connect vs VPN): the customer gateway decides with local-preference.
 
-Clean up: `neighbor 169.254.22.1 route-map FROM-OCI in`, `no route-map OCI-T2-IN`, then `clear bgp 169.254.22.1 soft in`. Clean up exercise 2 too if you kept it, and bring tunnel 1 back with `sudo ipsec auto --up oci-tunnel-1`.
+Clean up: `no neighbor 169.254.22.1 route-map OCI-T2-IN in` (the neighbor falls back to the peer-group's `FROM-OCI`), `no route-map OCI-T2-IN`, then `clear bgp 169.254.22.1 soft in`. Clean up exercise 2 too if you kept it, and bring tunnel 1 back with `sudo ipsec auto --up oci-tunnel-1`.
 
 ### Exercise 4: The route that goes nowhere
 
@@ -105,10 +105,19 @@ ping -c3 -I 192.168.100.1 10.255.0.1         # fails
 
 The cpe has a valid BGP route to router-1's loopback, but the ping fails. The packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24, because nothing advertised it to OCI. router-1's BGP session changes routing on the cpe and on router-1 and nowhere else; the VCN route tables and the DRG never see it.
 
-This is the main lesson of the lab. In Azure, Azure Route Server would learn 10.255.0.1/32 from router-1 and program it into the VNet and the VPN gateway. AWS has VPC Route Server for the same job. OCI has no equivalent: only the DRG's own BGP sessions, over IPSec or FastConnect, change OCI routing. [Part 5](05-drg-routing-no-route-server.md) makes the ping work with static routes.
+In Azure, Azure Route Server would learn 10.255.0.1/32 from router-1 and program it into the VNet and the VPN gateway. AWS has VPC Route Server for the same job. OCI has no equivalent: only the DRG's own BGP sessions, over IPSec or FastConnect, change OCI routing. [Part 5](05-drg-routing-no-route-server.md) makes the ping work with static routes.
 
 **Azure link:** without Azure Route Server, a VNet ignores BGP on an NVA too; the route has to be a UDR.
 **AWS link:** without VPC Route Server, a VPC route table only gets the appliance's prefixes as static routes.
+
+## Azure and AWS equivalents
+
+| This lab (OCI) | Azure | AWS |
+|---|---|---|
+| Prepending towards the DRG (traffic *into* on-prem) | Prepending towards the VPN Gateway or ExpressRoute | Prepending towards the VGW or Transit Gateway |
+| Local-preference on the cpe (traffic *out of* on-prem) | Local-preference on the on-prem device | Local-preference on the customer gateway |
+| DRG drops paths that contain 31898 | VPN Gateway and Route Server drop paths that contain 65515 | VGW and TGW drop paths that contain the Amazon-side ASN |
+| *(no equivalent)*: BGP on a VM changes nothing in OCI | Azure Route Server | VPC Route Server |
 
 ## Links
 

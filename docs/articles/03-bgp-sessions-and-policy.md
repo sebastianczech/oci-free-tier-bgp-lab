@@ -2,7 +2,7 @@
 
 *Part 3 of 6 in the OCI Always Free BGP lab series. Previous: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md). Next: [BGP path selection and its limits](04-bgp-path-selection.md).*
 
-Most hybrid designs run BGP somewhere: VPN gateways, ExpressRoute, Direct Connect, FastConnect, SD-WAN appliances. Most people configure it once from a vendor template and never see what it does. This article and the next one use the lab to look at BGP up close. This one covers the sessions and the policy every eBGP session needs. [The next one](04-bgp-path-selection.md) covers the AS path, how to steer traffic, and where BGP stops being useful in a cloud.
+Most hybrid designs run BGP somewhere: VPN gateways, ExpressRoute, Direct Connect, FastConnect, SD-WAN appliances. It is often configured once from a vendor template, and nobody looks at what it does after that. This article and the next one use the lab to look at BGP up close. This one covers the sessions and the policy every eBGP session needs. [The next one](04-bgp-path-selection.md) covers the AS path, how to steer traffic, and where BGP stops being useful in a cloud.
 
 The exercises run on two VMs with FRR, so nothing here needs a licence.
 
@@ -111,7 +111,7 @@ show bgp neighbors 172.16.0.10
 
 The session stays Established, but `PfxRcd` shows `(Policy)` and the neighbor output says `Inbound updates discarded due to missing policy`. `show ip route bgp` is now empty. Put it back with `neighbor 172.16.0.10 route-map FROM-CPE in` and the same soft clear.
 
-Try the same on the cpe with `no neighbor OCI route-map FROM-OCI in`. The cpe loses the hub routes, and `curl http://10.0.1.100` leaves through the internet gateway instead of the tunnels and fails. Put it back with `neighbor OCI route-map FROM-OCI in` and `clear bgp 169.254.21.1 soft in`, `clear bgp 169.254.22.1 soft in`.
+Try the same on the cpe with `no neighbor OCI route-map FROM-OCI in`. The cpe loses the hub routes, and `curl http://10.0.1.100` leaves through the internet gateway instead of the tunnels and fails. The router-1 session goes down too, a few minutes later: it runs to 10.0.1.11, which the cpe could only reach through those hub routes. `ip nht resolve-via-default` lets FRR treat the default route as good enough, so the session stays Established until its hold timer expires, and then drops. Put it back with `neighbor OCI route-map FROM-OCI in` and `clear bgp 169.254.21.1 soft in`, `clear bgp 169.254.22.1 soft in`. If the router-1 session dropped, `clear bgp 10.0.1.11` brings it back once the hub routes are installed again.
 
 **Azure link:** filter what an NVA accepts from Azure Route Server and what it advertises to it. A missing export filter can push a default route to every VNet that ARS feeds.
 **AWS link:** VPC Route Server and Transit Gateway Connect peers are ordinary eBGP sessions. Filter both directions on the appliance.
@@ -156,6 +156,20 @@ sudo tcpdump -ni any -v tcp port 179
 ```
 
 In another session run `sudo vtysh -c "clear bgp 172.16.0.10"` and watch the OPEN, KEEPALIVE and UPDATE messages. With `-v`, tcpdump prints the IP TTL. The session crosses the VCN, the DRG, the tunnel and the on-prem VCN, which is why it needs `ebgp-multihop`. On the cpe, `sudo tcpdump -ni vti1 tcp port 179` shows the session with the DRG inside tunnel 1. Those packets never show up on `ens3`, which only carries ESP over UDP 4500 ([part 2](02-site-to-site-vpn-libreswan.md)).
+
+Clean up: stop tcpdump with Ctrl+C. The cleared session comes back to Established on its own.
+
+**Azure link:** the BGP sessions of a VPN Gateway run inside the tunnels too; on the on-prem device you see them on the tunnel interface, never on the outside one.
+**AWS link:** the BGP sessions of a Site-to-Site VPN run inside each tunnel between the 169.254.x.x inside addresses; on the customer gateway you see them only on the tunnel interface.
+
+## Azure and AWS equivalents
+
+| This lab (OCI) | Azure | AWS |
+|---|---|---|
+| DRG's ASN 31898 (fixed) | VPN Gateway ASN, 65515 by default | Amazon-side ASN of the virtual private gateway or Transit Gateway, 64512 by default |
+| BGP peers 169.254.21.1 and .22.1 inside the tunnels | APIPA BGP addresses (169.254.21.x-169.254.22.x) | Tunnel inside CIDR (169.254.x.x/30) |
+| eBGP multihop cpe ↔ router-1 | Azure Route Server peering with an NVA (multihop over the VNet) | VPC Route Server peering with an appliance |
+| Route-maps on the cpe | Route filtering on the on-prem device | Route filtering on the customer gateway |
 
 ## Links
 
