@@ -82,7 +82,7 @@ Sources: [Always Free Resources](https://docs.oracle.com/en-us/iaas/Content/Free
 
 ## Deploy
 
-Prerequisites: an OCI account (the profile's region must be the tenancy's home region), `~/.oci/config` with an API key, Terraform ≥ 1.5, and an SSH key pair. Terraform SSHes to the CPE VM to push the VPN config, so it uses `ssh_private_key_path`. The SSH rules allow only your current public IP, which Terraform reads from `https://ifconfig.me/ip` on every plan.
+Prerequisites: an OCI account (Terraform must use the tenancy's home region: the profile's `region=`, or the `region` variable if you set it), `~/.oci/config` with an API key, Terraform ≥ 1.5, and an SSH key pair. Terraform SSHes to the CPE VM to push the VPN config, so it uses `ssh_private_key_path`. The SSH rules allow only your current public IP, which Terraform reads from `https://ifconfig.me/ip` on every plan.
 
 **Authenticate** (once). The provider reads the `DEFAULT` profile in `~/.oci/config` (`config_file_profile`):
 
@@ -93,7 +93,7 @@ cat ~/.oci/oci_api_key_public.pem              # Console → My profile → API 
 oci iam availability-domain list               # test: lists your ADs
 ```
 
-The user OCID is under *avatar → My profile*, the tenancy OCID under *avatar → Tenancy*. The fingerprint the console shows after the upload must match `fingerprint=` in `~/.oci/config`. Without the CLI, *Add API key → Generate API key pair* downloads the private key and shows a config snippet to paste into `~/.oci/config` (point `key_file=` at the `.pem`). See [Required Keys and OCIDs](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm).
+In the [Console](https://cloud.oracle.com/), the user OCID is under *avatar → My profile*, the tenancy OCID under *avatar → Tenancy*. The fingerprint the console shows after the upload must match `fingerprint=` in `~/.oci/config`. Without the CLI, *Add API key → Generate API key pair* downloads the private key and shows a config snippet to paste into `~/.oci/config` (point `key_file=` at the `.pem`). See [Required Keys and OCIDs](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm).
 
 **Find your Micro AD.** In multi-AD regions, Always Free E2.1.Micro VMs work in one availability domain only; elsewhere the limit is 0 and the launch fails with `400-LimitExceeded`. Set `micro_ad_index` to the 0-based position of the AD with value 2:
 
@@ -142,7 +142,7 @@ In the OCI console, *Networking → Site-to-Site VPN → tunnels* shows the IPSe
 | Symptom | Cause | Fix |
 |---|---|---|
 | `400-LimitExceeded` when the VMs launch | `micro_ad_index` points at an AD without E2.1.Micro capacity | Run the `oci limits` command in [Deploy](#deploy) and use the AD with value 2 |
-| VM launches fail or Always Free limits are 0 | The profile in `~/.oci/config` isn't the tenancy's home region | Set `region=` to the home region (*avatar → Tenancy*) |
+| VM launches fail or Always Free limits are 0 | Terraform isn't using the tenancy's home region | Set `region=` in `~/.oci/config` (or the `region` variable) to the home region (*avatar → Tenancy*) |
 | `terraform_data.cpe_config` times out on SSH | Your public IP changed since the last plan, so the security list blocks SSH | Run `terraform apply` again: it reads the new IP from `ifconfig.me` and updates the rule |
 | Tunnels up, BGP to 169.254.x.x stuck in `Active` | The `InstanceServices` rule rejects output to 169.254.0.0/16 | Check that rule 1 of `sudo iptables -L OUTPUT -n -v` is the `vti+` ACCEPT ([article 2](docs/articles/02-site-to-site-vpn-libreswan.md)) |
 | Session Established, but `PfxRcd` shows `(Policy)` | An eBGP neighbor without an `in` or `out` route-map ([article 3](docs/articles/03-bgp-sessions-and-policy.md)) | Add the route-map back and run `clear bgp <peer> soft` |
@@ -199,6 +199,10 @@ terraform destroy
 
 ## Files
 
+- `main.tf`: your public IP lookup, availability domains, and the fixed private IPs, subnets and tunnel addresses (`locals`)
+- `variables.tf`, `terraform.tfvars.example`: inputs (compartment, AD index, SSH keys, CIDRs, ASNs, flow logs)
+- `outputs.tf`: SSH commands, `app_url`, private IPs, VPN headends and BGP state
+- `versions.tf`: Terraform and provider versions, OCI provider auth
 - `network.tf`: VCNs, subnets, route tables, security lists, flow logs
 - `vpn.tf`: DRG, CPE, IPSec connection, tunnels (BGP, IKEv2), and the SSH push of the CPE config
 - `compute.tf`: the 2 Micro VMs (cpe, router-1)
