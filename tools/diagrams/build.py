@@ -373,7 +373,32 @@ def lb_flows():
     return d
 
 
-DIAGRAMS = [topology, vpn_tunnels, bgp_sessions, bgp_policy, bgp_prepend, drg_routing, lb_flows]
+def tailscale():
+    """Article 7: the laptop reaches the hub through the cpe as a Tailscale subnet router."""
+    d = Diagram("tailscale")
+    d.title(40, 0, "Tailscale subnet router", "laptop → WireGuard → cpe → IPSec → hub")
+    you = d.icon("user", 120, 300, "laptop\n100.x.y.z", h=56)
+    d.region(300, 90, 420, 420, "Simulated on-prem")
+    cpe = d.icon("cpe", 510, 300, "cpe\ntailscale0 · vti1/2", h=64)
+    drg = d.icon("drg", 880, 300, "DRG", h=64, width=110)
+    d.vcn(1040, 90, 440, 420, "hub VCN")
+    nlb = d.icon("nlb", 1150, 300, "NLB", h=56)
+    r1 = d.icon("vm", 1370, 300, "router-1", h=60)
+
+    d.arrow([you.r, cpe.l], ONPREM, width=3)
+    d.note(170, 240, "WireGuard", color=ONPREM, size=15)
+    d.arrow([cpe.r, drg.l], ONPREM, width=3)
+    d.note(610, 240, "IPSec", color=ONPREM, size=15)
+    d.arrow([drg.r, nlb.l], ONPREM, width=3)
+    d.arrow([nlb.r, r1.l], ONPREM, width=3)
+
+    d.card(400, 420, 220, 54, "SNAT → 172.16.0.10", color=ONPREM)
+    d.arrow([(510, 418), (510, cpe.b[1] + 6)], ONPREM, heads=False, width=1)
+    d.legend(40, 560, [(ONPREM, "laptop → NLB → router-1", False)])
+    return d
+
+
+DIAGRAMS = [topology, vpn_tunnels, bgp_sessions, bgp_policy, bgp_prepend, drg_routing, lb_flows, tailscale]
 
 if __name__ == "__main__":
     wanted = set(sys.argv[1:])

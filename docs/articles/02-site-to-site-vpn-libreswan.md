@@ -1,6 +1,6 @@
 # Site-to-Site VPN with Libreswan: route-based IPSec to a DRG
 
-*Part 2 of 6 in the OCI Always Free BGP lab series. Previous: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md). Next: [BGP sessions and policy](03-bgp-sessions-and-policy.md).*
+*Part 2 of 7 in the OCI Always Free BGP lab series. Previous: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md). Next: [BGP sessions and policy](03-bgp-sessions-and-policy.md).*
 
 Before BGP can run between on-prem and the cloud, there has to be a path for it. In this lab that path is an OCI Site-to-Site VPN: two IPSec tunnels between a Linux VM running Libreswan (the "cpe") and the DRG. This article looks at how those tunnels are built and what to check when they don't come up.
 

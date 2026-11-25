@@ -1,6 +1,6 @@
 # A free hybrid-networking lab on Oracle Cloud
 
-*Part 1 of 6 in the OCI Always Free BGP lab series. Next: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md).*
+*Part 1 of 7 in the OCI Always Free BGP lab series. Next: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md).*
 
 Hybrid networking is hard to learn from slides. You need a cloud gateway, an on-prem router, a VPN between them and BGP on top, and in most clouds that costs money every hour it runs. Oracle Cloud's Always Free tier includes everything needed for that: a Dynamic Routing Gateway (DRG), Site-to-Site VPN, a load balancer, a network load balancer and two small VMs.
 
@@ -12,6 +12,7 @@ This series uses one Terraform module, [oci-free-tier-bgp-lab](../../README.md),
 4. [BGP hands-on, part 2: path selection and its limits](04-bgp-path-selection.md)
 5. [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md)
 6. [Load balancers in a hybrid setup: public LB vs private NLB](06-load-balancers-hybrid.md)
+7. [Remote access to a hybrid lab: the CPE as a Tailscale subnet router](07-tailscale-subnet-router.md)
 
 Every article maps the OCI pieces to their Azure and AWS equivalents, so the lessons carry over.
 

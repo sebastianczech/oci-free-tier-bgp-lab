@@ -1,6 +1,6 @@
 # BGP hands-on, part 2: path selection and its limits
 
-*Part 4 of 6 in the OCI Always Free BGP lab series. Previous: [BGP sessions and policy](03-bgp-sessions-and-policy.md). Next: [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md).*
+*Part 4 of 7 in the OCI Always Free BGP lab series. Previous: [BGP sessions and policy](03-bgp-sessions-and-policy.md). Next: [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md).*
 
 [Part 3](03-bgp-sessions-and-policy.md) brought up the lab's three eBGP sessions: the cpe peers with the DRG over each of the two tunnels, and with router-1 through the VPN. Every session has an inbound and an outbound route-map. This article uses those sessions to look at the AS path: how it prevents loops, and how you can steer traffic onto one tunnel with prepending and local-preference. The last exercise shows where BGP stops being useful in OCI.
 

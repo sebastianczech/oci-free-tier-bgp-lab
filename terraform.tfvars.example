@@ -8,3 +8,6 @@ compartment_id = "ocid1.tenancy.oc1..xxxx" # the tenancy OCID = root compartment
 # ssh_public_key_path  = "~/.ssh/id_rsa.pub"
 # ssh_private_key_path = "~/.ssh/id_rsa"
 # micro_ad_index       = 0 # the AD where your tenancy has the E2.1.Micro limit (see README)
+
+# Optional: make the CPE a Tailscale subnet router (docs/articles/07-tailscale-subnet-router.md)
+# tailscale_auth_key   = "tskey-auth-xxxx" # reusable + ephemeral, from the Tailscale admin console → Settings → Keys
