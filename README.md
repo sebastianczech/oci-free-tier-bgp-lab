@@ -150,6 +150,7 @@ In the OCI console, *Networking → Site-to-Site VPN → tunnels* shows the IPSe
 | Tunnels up, BGP to 169.254.x.x stuck in `Active` | The `InstanceServices` rule rejects output to 169.254.0.0/16 | Check that rule 1 of `sudo iptables -L OUTPUT -n -v` is the `vti+` ACCEPT ([article 2](docs/articles/02-site-to-site-vpn-libreswan.md)) |
 | Session Established, but `PfxRcd` shows `(Policy)` | An eBGP neighbor without an `in` or `out` route-map ([article 3](docs/articles/03-bgp-sessions-and-policy.md)) | Add the route-map back and run `clear bgp <peer> soft` |
 | `ping 10.255.0.1` from the CPE fails | Expected: nothing advertises the loopback to OCI | See [article 5](docs/articles/05-drg-routing-no-route-server.md) |
+| Laptop ping to 10.0.1.11 times out, `route -n get 10.0.1.11` shows `en0` | The Tailscale client is stopped, or the cpe's subnet routes aren't approved | Start the client and approve the routes; exercise 2 in [article 7](docs/articles/07-tailscale-subnet-router.md) checks each hop |
 
 ## Destroy
 

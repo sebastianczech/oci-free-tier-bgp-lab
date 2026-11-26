@@ -59,7 +59,7 @@ If your laptop's own network uses part of 10.0.0.0/16, the advertised route conf
 
 ## Exercises
 
-The expected outputs come from the configs and Tailscale's and Oracle's documentation; they have not been captured from a live run yet.
+The outputs in exercise 2's table and exercise 3's capture come from a live run. The rest come from the configs and Tailscale's and Oracle's documentation.
 
 ### Exercise 1: The laptop as an on-prem client
 
@@ -85,21 +85,73 @@ The echo requests arrive from 172.16.0.10, the cpe. On the cpe, `sudo tcpdump -n
 **Azure link:** a point-to-site VPN on the same VPN gateway gives remote users a client address pool and the routes to the VNet.
 **AWS link:** AWS Client VPN gives remote users access to a VPC, and from there to on-prem networks.
 
-### Exercise 2: Tailscale's own SNAT
+### Exercise 2: Find the broken hop
+
+When the ping from the laptop times out, there's no error message to tell you where the packet stopped. Check the path one hop at a time, from the laptop to the tunnels. Each check rules out one layer.
+
+On the laptop:
+
+```bash
+tailscale status                 # 1. the client runs and bgp-lab-cpe is listed
+route -n get 10.0.1.11           # 2. macOS; on Linux: ip route get 10.0.1.11
+tailscale status --json | jq '.Peer[] | select(.HostName=="bgp-lab-cpe") | {PrimaryRoutes, AllowedIPs}'   # 3.
+tailscale ping 172.16.0.10       # 4. the WireGuard path to the cpe
+```
+
+On the cpe:
+
+```bash
+tailscale debug prefs | grep -A4 AdvertiseRoutes          # 5. what the cpe offers
+tailscale debug prefs | grep NoSNAT                       # 6. Tailscale's own SNAT
+sudo iptables -t nat -L POSTROUTING -n -v --line-numbers  # 7. which SNAT rule counts packets
+sudo tcpdump -ni any icmp                                 # 8. the packet in and out
+```
+
+| Check | Healthy | If not |
+|---|---|---|
+| 1 | Your laptop and `bgp-lab-cpe` listed | `Tailscale is stopped.`: connect the client |
+| 2 | `interface: utun4` (any `utunN`; `tailscale0` on Linux) | `gateway: 192.168.x.1`, `interface: en0`: the laptop has no tailnet route, so the packet goes to your home router |
+| 3 | `PrimaryRoutes` lists the three subnets, and `AllowedIPs` has them next to the cpe's 100.x.y.z | `"PrimaryRoutes": null`: the routes aren't approved, or the cpe doesn't advertise them |
+| 4 | `pong from bgp-lab-cpe (...) via DERP(fra)` or `via <ip>:<port>` | `no matching peer`: no approved route covers 172.16.0.10 |
+| 5 | 10.0.0.0/16, 172.16.0.0/24, 192.168.100.0/24 | Missing: re-run `terraform apply -replace='terraform_data.cpe_tailscale[0]'` |
+| 6 | `"NoSNAT": true` | `false`: see exercise 3 |
+| 7 | The lab's `SNAT ... to:172.16.0.10` rule counts packets | Its counter stays at 0: something earlier in the chain rewrote the source |
+| 8 | `tailscale0 In 100.x.y.z > 10.0.1.11`, then `vti1` or `vti2` `Out 172.16.0.10 > 10.0.1.11` | Nothing on `tailscale0`: the problem is before the cpe (checks 1–4) |
+
+`via DERP(fra)` means the two devices didn't connect directly and Tailscale relays the WireGuard packets through its Frankfurt server. It still works, with more latency. `tailscale ping` only tests the path to the cpe, not the hosts behind it, so checks 7 and 8 are what show the packet entering the tunnels.
+
+Now break it on purpose and see which check fails first:
+
+1. In the admin console, on `bgp-lab-cpe` → *Subnets* → *Edit*, unapprove 10.0.0.0/16 only. Run checks 2–4 again.
+2. Approve it again, then quit the Tailscale client on the laptop. Run checks 1–4 again.
+
+Answers: in step 1, check 2 falls back to `en0` and check 3 lists only two subnets, but check 4 still answers, because 172.16.0.0/24 is still approved: the checks are per prefix. In step 2, every check on the laptop stops at `Tailscale is stopped.`, and the capture on the cpe stays empty.
+
+Clean up: approve 10.0.0.0/16 and start the client again.
+
+### Exercise 3: Tailscale's own SNAT
 
 Turn Tailscale's SNAT back on, on the cpe:
 
 ```bash
 sudo tailscale set --snat-subnet-routes=true
+tailscale debug prefs | grep NoSNAT               # now false
 sudo iptables -t nat -L ts-postrouting -n -v      # the MASQUERADE rule Tailscale adds
 sudo tcpdump -ni any icmp and not host 172.16.0.10
 ```
 
-Ping 10.0.1.11 from the laptop. The ping fails, and the capture shows the requests leaving `vti1` or `vti2` from 169.254.21.2 or 169.254.22.2. Tailscale inserts its chain at the top of `POSTROUTING`, so its rule should run before the lab's, and the hub can't reply to those addresses.
+Ping 10.0.1.11 from the laptop. The ping fails. The capture shows each request twice: in on `tailscale0` from your laptop's 100.x.y.z address, then out on `vti1` or `vti2` from 169.254.21.2 or 169.254.22.2:
 
-Clean up: `sudo tailscale set --snat-subnet-routes=false`.
+```
+tailscale0 In  IP 100.116.104.75 > 10.0.1.11: ICMP echo request, id 5691, seq 0, length 64
+vti2  Out IP 169.254.22.2 > 10.0.1.11: ICMP echo request, id 5691, seq 0, length 64
+```
 
-### Exercise 3: No SNAT at all
+`sudo iptables -t nat -L POSTROUTING -n -v --line-numbers` shows why: Tailscale inserts its `ts-postrouting` jump as rule 1, above the lab's SNAT rule, so its MASQUERADE runs first and the lab's rule never matches. The hub can't reply to 169.254.x.x addresses.
+
+Clean up: `sudo tailscale set --snat-subnet-routes=false`, and check that `NoSNAT` is `true` again.
+
+### Exercise 4: No SNAT at all
 
 The SNAT hides who the client is: router-1 can't tell your laptop from the cpe. Remove it, so router-1 sees the real 100.x.y.z address, and make the replies find their way back.
 
