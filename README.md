@@ -14,9 +14,10 @@ The exercises live in a series of articles, one per layer of the lab:
 2. [Site-to-Site VPN with Libreswan: route-based IPSec to a DRG](docs/articles/02-site-to-site-vpn-libreswan.md): two tunnels, VTIs, NAT-T, the iptables rule that blocks BGP
 3. [BGP hands-on, part 1: eBGP sessions and policy](docs/articles/03-bgp-sessions-and-policy.md): sessions, multihop, RFC 8212 policy, maximum-prefix, BGP on the wire
 4. [BGP hands-on, part 2: path selection and its limits](docs/articles/04-bgp-path-selection.md): AS path and loop prevention, prepending, local-preference, the route that goes nowhere
-5. [DRG routing and the missing Route Server](docs/articles/05-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
-6. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/06-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
-7. [Remote access to a hybrid lab: the CPE as a Tailscale subnet router](docs/articles/07-tailscale-subnet-router.md): optional, your laptop as an on-prem client over WireGuard, SNAT vs routing the tailnet over BGP
+5. [ECMP across two tunnels: flow hashing, asymmetric routing, failover](docs/articles/05-ecmp-two-tunnels.md): both tunnels at once from both sides, DRG ECMP, rp_filter, failover time
+6. [DRG routing and the missing Route Server](docs/articles/06-drg-routing-no-route-server.md): DRG route tables, ingress routing, making router-1's loopback reachable
+7. [Load balancers in a hybrid setup: public LB vs private NLB](docs/articles/07-load-balancers-hybrid.md): full proxy vs L4, source IPs, flow logs, health checks
+8. [Remote access to a hybrid lab: the CPE as a Tailscale subnet router](docs/articles/08-tailscale-subnet-router.md): optional, your laptop as an on-prem client over WireGuard, SNAT vs routing the tailnet over BGP
 
 ## Topology
 
@@ -31,7 +32,7 @@ The exercises live in a series of articles, one per layer of the lab:
 | `lb` subnet | 0.0.0.0/0 | Internet gateway | public LB |
 | `nva` subnet | 0.0.0.0/0 | Internet gateway | router-1's own traffic (packages, SSH) |
 | `nva` subnet | 172.16.0.0/16, 192.168.100.0/24 | DRG | router-1 and the NLB → on-prem |
-| DRG attachment (VCN ingress) | *(empty)* | | attached but without rules: the hook for the exercise in [article 5](docs/articles/05-drg-routing-no-route-server.md) |
+| DRG attachment (VCN ingress) | *(empty)* | | attached but without rules: the hook for the exercise in [article 6](docs/articles/06-drg-routing-no-route-server.md) |
 | DRG (auto, BGP) | 172.16.0.0/24, 192.168.100.0/24 | IPSec tunnels | learned from the CPE |
 
 **Not covered on Always Free Micro:** an NVA *in the path*: a router pair behind a transparent NLB with ingress routing and UDR-style route rules. That needs two more VMs, and therefore Ampere A1 capacity. See [Learn About Deploying Palo Alto firewall in Active/Active mode with OCI Flexible Network Load Balancer](https://docs.oracle.com/en/solutions/oci-nlb-palo-alto-active-active/index.html) for that pattern.
@@ -59,7 +60,7 @@ The exercises live in a series of articles, one per layer of the lab:
 
 *Editable source: [`bgp-sessions.excalidraw.svg`](diagrams/bgp-sessions.excalidraw.svg) (open in Excalidraw).*
 
-The second session shows the lab's main lesson, and it applies to Azure too: BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Articles 3 and 4](docs/articles/03-bgp-sessions-and-policy.md) walk through the sessions, and [article 5](docs/articles/05-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
+The second session shows the lab's main lesson, and it applies to Azure too: BGP between VMs only changes the VMs' own routing tables. The CPE learns 10.255.0.1/32, but a ping to it fails: the packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24 because nothing advertised it to OCI. OCI has no equivalent of Azure Route Server or AWS VPC Route Server, so a VM can't program the VCN or DRG with BGP. Only the DRG's own sessions over IPSec or FastConnect do that. [Articles 3 and 4](docs/articles/03-bgp-sessions-and-policy.md) walk through the sessions, and [article 6](docs/articles/06-drg-routing-no-route-server.md) makes the loopback reachable with static routes.
 
 ## Always Free usage
 
@@ -85,7 +86,7 @@ Sources: [Always Free Resources](https://docs.oracle.com/en-us/iaas/Content/Free
 
 Prerequisites: an OCI account (Terraform must use the tenancy's home region: the profile's `region=`, or the `region` variable if you set it), `~/.oci/config` with an API key, Terraform ≥ 1.5, and an SSH key pair. Terraform SSHes to the CPE VM to push the VPN config, so it uses `ssh_private_key_path`. The SSH rules allow only your current public IP, which Terraform reads from `https://ifconfig.me/ip` on every plan.
 
-Optional, for [article 7](docs/articles/07-tailscale-subnet-router.md): a Tailscale account and the [Tailscale client](https://tailscale.com/download) on your laptop (`tailscale status` shows whether it's installed and connected), plus `tailscale_auth_key` in `terraform.tfvars`.
+Optional, for [article 8](docs/articles/08-tailscale-subnet-router.md): a Tailscale account and the [Tailscale client](https://tailscale.com/download) on your laptop (`tailscale status` shows whether it's installed and connected), plus `tailscale_auth_key` in `terraform.tfvars`.
 
 **Authenticate** (once). The provider reads the `DEFAULT` profile in `~/.oci/config` (`config_file_profile`):
 
@@ -126,7 +127,7 @@ sudo vtysh -c "show ip route bgp"            # 10.0.0.0/24, 10.0.1.0/24 via vti1
 curl -s http://10.0.1.100                    # on-prem → NLB → nginx on router-1
 curl -s --interface 192.168.100.1 http://10.0.1.100   # from the on-prem "LAN"
 ping -c3 10.0.1.11                           # on-prem → router-1 directly
-ping -c3 10.255.0.1                          # fails: see "BGP sessions" above and article 5
+ping -c3 10.255.0.1                          # fails: see "BGP sessions" above and article 6
 
 # router-1
 ssh ubuntu@<router-1>
@@ -149,8 +150,8 @@ In the OCI console, *Networking → Site-to-Site VPN → tunnels* shows the IPSe
 | `terraform_data.cpe_config` times out on SSH | Your public IP changed since the last plan, so the security list blocks SSH | Run `terraform apply` again: it reads the new IP from `ifconfig.me` and updates the rule |
 | Tunnels up, BGP to 169.254.x.x stuck in `Active` | The `InstanceServices` rule rejects output to 169.254.0.0/16 | Check that rule 1 of `sudo iptables -L OUTPUT -n -v` is the `vti+` ACCEPT ([article 2](docs/articles/02-site-to-site-vpn-libreswan.md)) |
 | Session Established, but `PfxRcd` shows `(Policy)` | An eBGP neighbor without an `in` or `out` route-map ([article 3](docs/articles/03-bgp-sessions-and-policy.md)) | Add the route-map back and run `clear bgp <peer> soft` |
-| `ping 10.255.0.1` from the CPE fails | Expected: nothing advertises the loopback to OCI | See [article 5](docs/articles/05-drg-routing-no-route-server.md) |
-| Laptop ping to 10.0.1.11 times out, `route -n get 10.0.1.11` shows `en0` | The Tailscale client is stopped, or the cpe's subnet routes aren't approved | Start the client and approve the routes; exercise 2 in [article 7](docs/articles/07-tailscale-subnet-router.md) checks each hop |
+| `ping 10.255.0.1` from the CPE fails | Expected: nothing advertises the loopback to OCI | See [article 6](docs/articles/06-drg-routing-no-route-server.md) |
+| Laptop ping to 10.0.1.11 times out, `route -n get 10.0.1.11` shows `en0` | The Tailscale client is stopped, or the cpe's subnet routes aren't approved | Start the client and approve the routes; exercise 2 in [article 8](docs/articles/08-tailscale-subnet-router.md) checks each hop |
 
 ## Destroy
 

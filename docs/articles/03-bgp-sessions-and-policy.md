@@ -1,6 +1,6 @@
 # BGP hands-on, part 1: eBGP sessions and policy
 
-*Part 3 of 7 in the OCI Always Free BGP lab series. Previous: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md). Next: [BGP path selection and its limits](04-bgp-path-selection.md).*
+*Part 3 of 8 in the OCI Always Free BGP lab series. Previous: [Site-to-Site VPN with Libreswan](02-site-to-site-vpn-libreswan.md). Next: [BGP path selection and its limits](04-bgp-path-selection.md).*
 
 Most hybrid designs run BGP somewhere: VPN gateways, ExpressRoute, Direct Connect, FastConnect, SD-WAN appliances. It is often configured once from a vendor template, and nobody looks at what it does after that. This article and the next one use the lab to look at BGP up close. This one covers the sessions and the policy every eBGP session needs. [The next one](04-bgp-path-selection.md) covers the AS path, how to steer traffic, and where BGP stops being useful in a cloud.
 

@@ -1,5 +1,5 @@
 ################################################################################
-# Optional: the CPE as a Tailscale subnet router (docs/articles/07-tailscale-subnet-router.md).
+# Optional: the CPE as a Tailscale subnet router (docs/articles/08-tailscale-subnet-router.md).
 # Your laptop joins the simulated on-prem network over WireGuard and reaches the hub through
 # the Site-to-Site VPN. Off unless tailscale_auth_key is set. No OCI resources: Tailscale runs
 # on the existing CPE VM.

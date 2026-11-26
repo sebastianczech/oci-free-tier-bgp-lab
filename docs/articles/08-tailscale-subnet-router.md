@@ -1,6 +1,6 @@
 # Remote access to a hybrid lab: the CPE as a Tailscale subnet router
 
-*Part 7 of 7 in the OCI Always Free BGP lab series. Previous: [Load balancers in a hybrid setup](06-load-balancers-hybrid.md). Back to the start: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md).*
+*Part 8 of 8 in the OCI Always Free BGP lab series. Previous: [Load balancers in a hybrid setup](07-load-balancers-hybrid.md). Back to the start: [A free hybrid-networking lab on Oracle Cloud](01-free-oci-hybrid-lab.md).*
 
 So far the only on-prem client in the lab has been the cpe itself, and you reach the VMs over SSH to their public IPs. In a real hybrid network, people also work remotely: they connect to the corporate network with a client VPN and reach the cloud through the Site-to-Site VPN behind it. This article builds that with [Tailscale](https://tailscale.com/), a WireGuard mesh VPN. Its free Personal plan is enough, and the lab adds no OCI resources: Tailscale runs on the existing cpe VM, which becomes a *subnet router*. Your laptop then reaches the private NLB and router-1 the way an on-prem user would: over WireGuard to the cpe, then through the IPSec tunnels to the DRG.
 
@@ -80,7 +80,7 @@ sudo tcpdump -ni ens3 icmp
 
 The echo requests arrive from 172.16.0.10, the cpe. On the cpe, `sudo tcpdump -ni tailscale0 icmp` shows the same packets with your laptop's 100.x.y.z address, before the SNAT.
 
-`curl http://10.0.1.100` through the NLB shows two translations in a row: the cpe replaces 100.x.y.z with 172.16.0.10, then the NLB replaces 172.16.0.10 with 10.0.1.100 ([part 6](06-load-balancers-hybrid.md)).
+`curl http://10.0.1.100` through the NLB shows two translations in a row: the cpe replaces 100.x.y.z with 172.16.0.10, then the NLB replaces 172.16.0.10 with 10.0.1.100 ([part 7](07-load-balancers-hybrid.md)).
 
 **Azure link:** a point-to-site VPN on the same VPN gateway gives remote users a client address pool and the routes to the VNet.
 **AWS link:** AWS Client VPN gives remote users access to a VPC, and from there to on-prem networks.

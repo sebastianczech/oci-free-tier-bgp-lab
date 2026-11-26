@@ -321,8 +321,30 @@ def bgp_prepend():
     return d
 
 
+def ecmp():
+    """Article 5: flows hash onto either tunnel, each side picks on its own."""
+    d = Diagram("ecmp")
+    d.title(40, 0, "ECMP across two tunnels", "one tunnel per flow, each side picks its own")
+    cpe = d.icon("cpe", 130, 330, "cpe", h=60)
+    drg = d.icon("drg", 760, 330, "DRG", h=64, width=110)
+    r1 = d.icon("vm", 1180, 330, "router-1", h=56)
+
+    d.arrow([cpe.at("r", -18), (300, 312), (300, 220), (600, 220), (600, 312), drg.at("l", -18)], ONPREM, width=3)
+    d.arrow([cpe.at("r", 12), (300, 342), (300, 430), (600, 430), (600, 342), drg.at("l", 12)], ONPREM, width=3)
+    d.arrow([drg.at("l", 30), (620, 360), (620, 480), (280, 480), (280, 360), cpe.at("r", 30)], ONPREM, width=2)
+    d.note(330, 185, "tunnel 1 · flow A", color=ONPREM, size=15)
+    d.note(330, 395, "tunnel 2 · flow B", color=ONPREM, size=15)
+    d.note(330, 490, "tunnel 2 · reply A", color=ONPREM, size=15)
+    d.arrow([drg.r, r1.l], ONPREM, width=3, both=True)
+
+    d.card(40, 560, 220, 54, "maximum-paths 2\nhash: L3 or L4", color=ONPREM)
+    d.card(650, 560, 240, 54, "ECMP per route table\noff by default", color=ONPREM)
+    d.legend(40, 660, [(ONPREM, "on-prem ↔ hub flows", False)])
+    return d
+
+
 def drg_routing():
-    """Article 5: the three places a packet to router-1's loopback needs a route."""
+    """Article 6: the three places a packet to router-1's loopback needs a route."""
     d = Diagram("drg-routing")
     d.title(40, 0, "Why ping 10.255.0.1 fails", "three places in OCI need a route")
     cpe = d.icon("cpe", 120, 330, "cpe", h=60)
@@ -347,7 +369,7 @@ def drg_routing():
 
 
 def lb_flows():
-    """Article 6: which source IP router-1 sees behind each load balancer."""
+    """Article 7: which source IP router-1 sees behind each load balancer."""
     d = Diagram("lb-flows")
     d.title(40, 0, "Who sees which source IP", "both load balancers replace the client's source address")
     d.vcn(440, 80, 1060, 560, "hub VCN")
@@ -374,7 +396,7 @@ def lb_flows():
 
 
 def tailscale():
-    """Article 7: the laptop reaches the hub through the cpe as a Tailscale subnet router."""
+    """Article 8: the laptop reaches the hub through the cpe as a Tailscale subnet router."""
     d = Diagram("tailscale")
     d.title(40, 0, "Tailscale subnet router", "laptop → WireGuard → cpe → IPSec → hub")
     you = d.icon("user", 120, 300, "laptop\n100.x.y.z", h=56)
@@ -398,7 +420,7 @@ def tailscale():
     return d
 
 
-DIAGRAMS = [topology, vpn_tunnels, bgp_sessions, bgp_policy, bgp_prepend, drg_routing, lb_flows, tailscale]
+DIAGRAMS = [topology, vpn_tunnels, bgp_sessions, bgp_policy, bgp_prepend, ecmp, drg_routing, lb_flows, tailscale]
 
 if __name__ == "__main__":
     wanted = set(sys.argv[1:])

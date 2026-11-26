@@ -1,6 +1,6 @@
 # Load balancers in a hybrid setup: public LB vs private NLB
 
-*Part 6 of 7 in the OCI Always Free BGP lab series. Previous: [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md). Next: [Remote access with a Tailscale subnet router](07-tailscale-subnet-router.md).*
+*Part 7 of 8 in the OCI Always Free BGP lab series. Previous: [DRG routing and the missing Route Server](06-drg-routing-no-route-server.md). Next: [Remote access with a Tailscale subnet router](08-tailscale-subnet-router.md).*
 
 The lab's "application" is nginx on router-1, and two load balancers sit in front of it: a public flexible Load Balancer for the internet, and a private Network Load Balancer for on-prem, reached through the VPN. Always Free includes one of each. Both forward to the same nginx, but they handle the client's connection differently, and the source IP that nginx sees shows the difference.
 
@@ -89,7 +89,7 @@ Clean up: `sudo systemctl start nginx`, and wait for both backends to turn *OK*.
 
 ## Where to go next
 
-Run `terraform destroy` when you're done. [Part 7](07-tailscale-subnet-router.md) connects your laptop to the lab as a remote on-prem user, still for free. To take the lab further, mostly beyond Always Free:
+Run `terraform destroy` when you're done. [Part 8](08-tailscale-subnet-router.md) connects your laptop to the lab as a remote on-prem user, still for free. To take the lab further, mostly beyond Always Free:
 
 - **An NVA in the path.** Two router VMs behind a transparent NLB, with the DRG attachment's route table pointing at the NLB. It needs Ampere A1 capacity for the extra VMs. Oracle's Palo Alto active/active reference architecture shows the pattern.
 - **FastConnect.** The same DRG, BGP and route tables, over a private circuit instead of the internet. The BGP lessons from parts 3 and 4 carry over unchanged.

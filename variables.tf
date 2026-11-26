@@ -70,7 +70,7 @@ variable "enable_flow_logs" {
 }
 
 variable "tailscale_auth_key" {
-  description = "Tailscale auth key (tskey-auth-...). When set, the CPE joins your tailnet as a subnet router (docs/articles/07-tailscale-subnet-router.md). Null leaves Tailscale out."
+  description = "Tailscale auth key (tskey-auth-...). When set, the CPE joins your tailnet as a subnet router (docs/articles/08-tailscale-subnet-router.md). Null leaves Tailscale out."
   type        = string
   default     = null
   sensitive   = true

@@ -1,6 +1,6 @@
 # BGP hands-on, part 2: path selection and its limits
 
-*Part 4 of 7 in the OCI Always Free BGP lab series. Previous: [BGP sessions and policy](03-bgp-sessions-and-policy.md). Next: [DRG routing and the missing Route Server](05-drg-routing-no-route-server.md).*
+*Part 4 of 8 in the OCI Always Free BGP lab series. Previous: [BGP sessions and policy](03-bgp-sessions-and-policy.md). Next: [ECMP across two tunnels](05-ecmp-two-tunnels.md).*
 
 [Part 3](03-bgp-sessions-and-policy.md) brought up the lab's three eBGP sessions: the cpe peers with the DRG over each of the two tunnels, and with router-1 through the VPN. Every session has an inbound and an outbound route-map. This article uses those sessions to look at the AS path: how it prevents loops, and how you can steer traffic onto one tunnel with prepending and local-preference. The last exercise shows where BGP stops being useful in OCI.
 
@@ -11,7 +11,7 @@ When BGP has several paths to the same prefix, it compares them attribute by att
 1. **Highest local-preference.** You set it on routes you receive, and it stays inside your AS. It decides which way *your* traffic leaves.
 2. **Shortest AS path.** The neighbor sees your AS path, so prepending your own ASN makes a path less attractive *to them*. It decides which way traffic comes *back* to you.
 
-With equal attributes, `maximum-paths` lets FRR use several paths at once. The cpe has `maximum-paths 2`, so by default it sends traffic over both tunnels (ECMP).
+With equal attributes, `maximum-paths` lets FRR use several paths at once. The cpe has `maximum-paths 2`, so by default it sends traffic over both tunnels (ECMP). [Part 5](05-ecmp-two-tunnels.md) looks at ECMP in both directions; this article turns it off on purpose.
 
 The AS path also prevents loops. Every AS adds its own number when it passes a route on, and a router drops any route whose path already contains its own ASN.
 
@@ -105,7 +105,7 @@ ping -c3 -I 192.168.100.1 10.255.0.1         # fails
 
 The cpe has a valid BGP route to router-1's loopback, but the ping fails. The packet goes into the tunnel, and the DRG has no route for 10.255.0.0/24, because nothing advertised it to OCI. router-1's BGP session changes routing on the cpe and on router-1 and nowhere else; the VCN route tables and the DRG never see it.
 
-In Azure, Azure Route Server would learn 10.255.0.1/32 from router-1 and program it into the VNet and the VPN gateway. AWS has VPC Route Server for the same job. OCI has no equivalent: only the DRG's own BGP sessions, over IPSec or FastConnect, change OCI routing. [Part 5](05-drg-routing-no-route-server.md) makes the ping work with static routes.
+In Azure, Azure Route Server would learn 10.255.0.1/32 from router-1 and program it into the VNet and the VPN gateway. AWS has VPC Route Server for the same job. OCI has no equivalent: only the DRG's own BGP sessions, over IPSec or FastConnect, change OCI routing. [Part 6](06-drg-routing-no-route-server.md) makes the ping work with static routes.
 
 **Azure link:** without Azure Route Server, a VNet ignores BGP on an NVA too; the route has to be a UDR.
 **AWS link:** without VPC Route Server, a VPC route table only gets the appliance's prefixes as static routes.

@@ -1,6 +1,6 @@
 # DRG routing and the missing Route Server
 
-*Part 5 of 7 in the OCI Always Free BGP lab series. Previous: [BGP path selection and its limits](04-bgp-path-selection.md). Next: [Load balancers in a hybrid setup](06-load-balancers-hybrid.md).*
+*Part 6 of 8 in the OCI Always Free BGP lab series. Previous: [ECMP across two tunnels](05-ecmp-two-tunnels.md). Next: [Load balancers in a hybrid setup](07-load-balancers-hybrid.md).*
 
 [Part 4](04-bgp-path-selection.md) ended with a route that goes nowhere: the cpe learns router-1's loopback 10.255.0.1/32 over BGP, but a ping to it dies in the DRG. Azure and AWS can fix this with BGP (Azure Route Server, AWS VPC Route Server). OCI can't, so this article fixes it the OCI way, with static routes, and looks at how the DRG decides where a packet goes.
 
