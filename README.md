@@ -227,3 +227,6 @@ terraform destroy
 * [Security Lists](https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/securitylists.htm): stateful and stateless subnet rules
 * [Overview of Load Balancer](https://docs.oracle.com/en-us/iaas/Content/Balance/Concepts/balanceoverview.htm): the public flexible LB
 * [Learn About Deploying Palo Alto firewall in Active/Active mode with OCI Flexible Network Load Balancer](https://docs.oracle.com/en/solutions/oci-nlb-palo-alto-active-active/index.html): the NVA-in-the-path pattern this lab doesn't build on Micro VMs
+* [What Is WireGuard?](https://www.paloaltonetworks.com/cyberpedia/what-is-wireguard): how the protocol Tailscale builds on works (Noise handshake, fixed crypto suite) and how it compares with IPsec/IKEv2 and OpenVPN
+* [How Tailscale works](https://tailscale.com/blog/how-tailscale-works): why Tailscale builds on WireGuard (light tunnels make a full mesh practical) and the full stack: WireGuard data plane, coordination server for keys, STUN/ICE NAT traversal, DERP relays
+* [How NAT traversal works](https://tailscale.com/blog/how-nat-traversal-works): how two peers behind NAT reach each other over UDP with STUN, and when traffic falls back to DERP
