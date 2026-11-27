@@ -222,6 +222,29 @@ Clean up, in this order, so the laptop keeps its access the whole time:
 
 4. Check: `sudo vtysh -c "show bgp ipv4 neighbors 169.254.21.1 advertised-routes"` on the cpe no longer lists 100.64.0.0/10, the counter of the SNAT rule in `sudo iptables -t nat -L POSTROUTING -n -v` grows while the laptop pings, and router-1's tcpdump shows 172.16.0.10 again.
 
+## Turn Tailscale off
+
+Commenting out `tailscale_auth_key` and running `apply` only removes `terraform_data.cpe_tailscale[0]` from the state. Nothing runs on the cpe, so Tailscale keeps running there: the cpe stays in the tailnet, keeps advertising its routes, and the SNAT rule stays in iptables. Rebuilding the cpe (or `terraform destroy`) removes all of it. To turn it off on a running cpe:
+
+1. On the cpe, leave the tailnet and stop the daemon. With an ephemeral key, the device then disappears from the admin console by itself; otherwise delete it on the *Machines* page.
+
+   ```bash
+   sudo tailscale logout
+   sudo systemctl disable --now tailscaled
+   ```
+
+2. Optionally, remove the package and the SNAT rule, and save the rules so the change survives a reboot:
+
+   ```bash
+   sudo apt-get purge -y tailscale
+   sudo iptables -t nat -D POSTROUTING -s 100.64.0.0/10 -o vti+ -j SNAT --to-source 172.16.0.10
+   sudo netfilter-persistent save
+   ```
+
+3. Check: `tailscale status` on the laptop no longer lists `bgp-lab-cpe`, and `sudo iptables -t nat -L POSTROUTING -n` on the cpe has no 100.64.0.0/10 rule.
+
+To turn it back on, uncomment the key and run `apply` again. The setup reinstalls Tailscale if it's missing and re-adds the rule.
+
 ## Azure and AWS equivalents
 
 | This lab (OCI + Tailscale) | Azure | AWS |
